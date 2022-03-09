@@ -2,8 +2,8 @@
     "name"          : "gltf2parser",
     "version"       : "0.0.1",
     "author"        : "Pedro Sousa ( Vor @ SketchPunk Labs )",
-    "description"   : "GLTF2 Parser",
-    "keywords"      : [],
+    "description"   : "Parse GLTF2 Files",
+    "keywords"      : ["gltf", "webgl", "mesh"],
     "license"       : "MIT",
 
     "homepage"      : "https://github.com/sketchpunklabs/gltf2parser#readme",
