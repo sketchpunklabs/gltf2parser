@@ -24,7 +24,7 @@ npm run dev
 
 ```javascript
 const gltf = await Gltf2Parser.fetch( '../_res/models/nabba/nabba.gltf' );
-scene.add( gltf.loadMesh( gltf ) );
+scene.add( loadMesh( gltf ) );
 
 //--------------------------------
 // Example of Turning GTLF Mesh into ThreeJS Mesh
