@@ -7,8 +7,13 @@
 [![Patreon](https://img.shields.io/badge/Patreon-donate-red?style=flat-square&logo=youtube)](https://www.patreon.com/sketchpunk)
 
 
-
 ### Setup ###
+
+```
+npm install gltf2parser
+```
+
+### Development Setup ###
 
 ```
 npm install
