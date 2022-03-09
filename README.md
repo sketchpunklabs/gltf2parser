@@ -18,7 +18,7 @@ npm run dev
 ## Usage ###
 
 ```javascript
-const gltf = await Gltf2.fetch( '../_res/models/nabba/nabba.gltf' );
+const gltf = await Gltf2Parser.fetch( '../_res/models/nabba/nabba.gltf' );
 
 //--------------------------------
 // Example of Turning GTLF Mesh into ThreeJS Mesh
