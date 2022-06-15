@@ -13,7 +13,7 @@
     "files"         : [ "dist" ],
     "main"          : "./dist/gltf2parser.cjs.js",
     "module"        : "./dist/gltf2parser.es.js",
-    "types"         : "./dist/gltf2parser.d.ts",
+    "types"         : "./dist/index.d.ts",
     "exports": {
         ".": {
             "import"  : "./dist/gltf2parser.es.js",
