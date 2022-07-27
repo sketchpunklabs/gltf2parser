@@ -38,6 +38,10 @@ export default ( { command, mode } ) => {
                 rollupOptions   : { input: getHtmlPaths() },
             },
             publicDir   : path.join( __dirname, "examples", "public" ),
+            server      : {
+                port : 3222, 
+                open : '/test/_template.html',
+            },
         };
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
