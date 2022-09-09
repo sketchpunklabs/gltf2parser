@@ -1,6 +1,6 @@
 {
     "name"          : "gltf2parser",
-    "version"       : "0.0.1",
+    "version"       : "0.0.2",
     "author"        : "Pedro Sousa ( Vor @ SketchPunk Labs )",
     "description"   : "Parse GLTF2 Files",
     "keywords"      : ["gltf", "webgl", "mesh"],

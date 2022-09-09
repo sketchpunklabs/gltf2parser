@@ -1,11 +1,13 @@
 //#region IMPORTS
 import parseGLB                                 from './Glb'; 
 import Accessor                                 from './Accessor';
+import InterleavedBuffer                        from './InterleavedBuffer';
 import { Mesh, Primitive }                      from './Mesh';
 import { Skin, SkinJoint }                      from './Skin';
 import { Animation, Track, ETransform, ELerp }  from './Animation';
 import { Texture }                              from './Texture';
 import { Pose }                                 from './Pose';
+import { ComponentTypeMap, ComponentVarMap }                      from './structs';
 //#endregion
 
 class Gltf2Parser{
@@ -95,17 +97,22 @@ class Gltf2Parser{
                 prim.materialIdx    = p.material;
                 prim.materialName   = json.materials[ p.material ].name;
             }
-
+            
             //------------------------------------------------------
             if( p.indices       != undefined ) prim.indices    = this.parseAccessor( p.indices );
-            if( attr.POSITION   != undefined ) prim.position   = this.parseAccessor( attr.POSITION );
-            if( attr.NORMAL     != undefined ) prim.normal     = this.parseAccessor( attr.NORMAL );
-            if( attr.TANGENT    != undefined ) prim.tangent    = this.parseAccessor( attr.TANGENT );
-            if( attr.TEXCOORD_0 != undefined ) prim.texcoord_0 = this.parseAccessor( attr.TEXCOORD_0 );
-            if( attr.TEXCOORD_1 != undefined ) prim.texcoord_1 = this.parseAccessor( attr.TEXCOORD_1 );
-            if( attr.JOINTS_0   != undefined ) prim.joints_0   = this.parseAccessor( attr.JOINTS_0 );
-            if( attr.WEIGHTS_0  != undefined ) prim.weights_0  = this.parseAccessor( attr.WEIGHTS_0 );
-            if( attr.COLOR_0    != undefined ) prim.color_0    = this.parseAccessor( attr.COLOR_0 );
+
+            if( attr.POSITION && this.isAccessorInterleaved( attr.POSITION ) ){
+                prim.interleaved = new InterleavedBuffer( attr, this.json, this.bin );
+            }else{
+                if( attr.POSITION   != undefined ) prim.position   = this.parseAccessor( attr.POSITION );
+                if( attr.NORMAL     != undefined ) prim.normal     = this.parseAccessor( attr.NORMAL );
+                if( attr.TANGENT    != undefined ) prim.tangent    = this.parseAccessor( attr.TANGENT );
+                if( attr.TEXCOORD_0 != undefined ) prim.texcoord_0 = this.parseAccessor( attr.TEXCOORD_0 );
+                if( attr.TEXCOORD_1 != undefined ) prim.texcoord_1 = this.parseAccessor( attr.TEXCOORD_1 );
+                if( attr.JOINTS_0   != undefined ) prim.joints_0   = this.parseAccessor( attr.JOINTS_0 );
+                if( attr.WEIGHTS_0  != undefined ) prim.weights_0  = this.parseAccessor( attr.WEIGHTS_0 );
+                if( attr.COLOR_0    != undefined ) prim.color_0    = this.parseAccessor( attr.COLOR_0 );
+            }
 
             //------------------------------------------------------
             mesh.primitives.push( prim );
@@ -501,9 +508,31 @@ class Gltf2Parser{
         const accessor      = this.json.accessors[ accID ];
         const bufView       = this.json.bufferViews[ accessor.bufferView ];
 
-        if( bufView.byteStride ){ console.error( "UNSUPPORTED - Parsing Stride Buffer" ); return null; }
+        if( bufView.byteStride ){
+            // If the total byte size is the same as the stride, its not really interleaved.
+            const compLen       = ComponentVarMap[ accessor.type ];
+            const byteSize      = ComponentTypeMap[ accessor.componentType ][ 0 ];
+            if( bufView.byteStride !== compLen * byteSize ){ 
+                console.error( 'UNSUPPORTED - Parsing Interleaved Buffer With Accessor Object' );
+                return null;
+            }
+        }
 
         return new Accessor( accessor, bufView, this.bin );
+    }
+
+    isAccessorInterleaved( accID: number ): boolean{
+        const accessor      = this.json.accessors[ accID ];
+        const bufView       = this.json.bufferViews[ accessor.bufferView ];
+
+        if( bufView.byteStride ){
+            // If the total byte size is the same as the stride, its not really interleaved.
+            const compLen       = ComponentVarMap[ accessor.type ];
+            const byteSize      = ComponentTypeMap[ accessor.componentType ][ 0 ];
+            return ( bufView.byteStride !== compLen * byteSize )
+        }
+
+        return false;
     }
     //#endregion ///////////////////////////////////////////////////////////////////////
 

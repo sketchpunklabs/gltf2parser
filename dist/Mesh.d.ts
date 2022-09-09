@@ -1,4 +1,5 @@
-import Accessor from "./Accessor";
+import Accessor from './Accessor';
+import InterleavedBuffer from './InterleavedBuffer';
 export declare class Mesh {
     index: number | null;
     name: string | null;
@@ -19,4 +20,5 @@ export declare class Primitive {
     color_0: Accessor | null;
     joints_0: Accessor | null;
     weights_0: Accessor | null;
+    interleaved: InterleavedBuffer | null;
 }

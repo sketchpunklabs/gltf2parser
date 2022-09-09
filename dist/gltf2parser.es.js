@@ -96,6 +96,60 @@ class Accessor {
     }
   }
 }
+class Attrib {
+  constructor(accID, json) {
+    __publicField(this, "byteOffset", 0);
+    __publicField(this, "componentLen", 0);
+    __publicField(this, "boundMin", null);
+    __publicField(this, "boundMax", null);
+    const accessor = json.accessors[accID];
+    this.componentLen = ComponentVarMap[accessor.type];
+    this.byteOffset = accessor.byteOffset;
+    this.boundMin = accessor.min ? accessor.min.slice(0) : null;
+    this.boundMax = accessor.max ? accessor.max.slice(0) : null;
+  }
+}
+class InterleavedBuffer {
+  constructor(attr, json, bin) {
+    __publicField(this, "data", null);
+    __publicField(this, "elementCnt", 0);
+    __publicField(this, "componentLen", 0);
+    __publicField(this, "byteStride", 0);
+    __publicField(this, "byteSize", 0);
+    __publicField(this, "position", null);
+    __publicField(this, "normal", null);
+    __publicField(this, "tangent", null);
+    __publicField(this, "texcoord_0", null);
+    __publicField(this, "texcoord_1", null);
+    __publicField(this, "color_0", null);
+    __publicField(this, "joints_0", null);
+    __publicField(this, "weights_0", null);
+    const accessor = json.accessors[attr.POSITION];
+    const bView = json.bufferViews[accessor.bufferView];
+    this.elementCnt = accessor.count;
+    this.byteStride = bView.byteStride;
+    this.byteSize = bView.byteLength;
+    this.componentLen = this.byteStride / 4;
+    this.position = new Attrib(attr.POSITION, json);
+    if (attr.NORMAL != void 0)
+      this.normal = new Attrib(attr.NORMAL, json);
+    if (attr.TANGENT != void 0)
+      this.tangent = new Attrib(attr.TANGENT, json);
+    if (attr.TEXCOORD_0 != void 0)
+      this.texcoord_0 = new Attrib(attr.TEXCOORD_0, json);
+    if (attr.TEXCOORD_1 != void 0)
+      this.texcoord_1 = new Attrib(attr.TEXCOORD_1, json);
+    if (attr.JOINTS_0 != void 0)
+      this.joints_0 = new Attrib(attr.JOINTS_0, json);
+    if (attr.WEIGHTS_0 != void 0)
+      this.weights_0 = new Attrib(attr.WEIGHTS_0, json);
+    if (attr.COLOR_0 != void 0)
+      this.color_0 = new Attrib(attr.COLOR_0, json);
+    if (bin) {
+      this.data = new Float32Array(bin, bView.byteOffset || 0, this.elementCnt * this.componentLen);
+    }
+  }
+}
 class Mesh {
   constructor() {
     __publicField(this, "index", null);
@@ -119,6 +173,7 @@ class Primitive {
     __publicField(this, "color_0", null);
     __publicField(this, "joints_0", null);
     __publicField(this, "weights_0", null);
+    __publicField(this, "interleaved", null);
   }
 }
 class Skin {
@@ -317,22 +372,26 @@ class Gltf2Parser {
       }
       if (p.indices != void 0)
         prim.indices = this.parseAccessor(p.indices);
-      if (attr.POSITION != void 0)
-        prim.position = this.parseAccessor(attr.POSITION);
-      if (attr.NORMAL != void 0)
-        prim.normal = this.parseAccessor(attr.NORMAL);
-      if (attr.TANGENT != void 0)
-        prim.tangent = this.parseAccessor(attr.TANGENT);
-      if (attr.TEXCOORD_0 != void 0)
-        prim.texcoord_0 = this.parseAccessor(attr.TEXCOORD_0);
-      if (attr.TEXCOORD_1 != void 0)
-        prim.texcoord_1 = this.parseAccessor(attr.TEXCOORD_1);
-      if (attr.JOINTS_0 != void 0)
-        prim.joints_0 = this.parseAccessor(attr.JOINTS_0);
-      if (attr.WEIGHTS_0 != void 0)
-        prim.weights_0 = this.parseAccessor(attr.WEIGHTS_0);
-      if (attr.COLOR_0 != void 0)
-        prim.color_0 = this.parseAccessor(attr.COLOR_0);
+      if (attr.POSITION && this.isAccessorInterleaved(attr.POSITION)) {
+        prim.interleaved = new InterleavedBuffer(attr, this.json, this.bin);
+      } else {
+        if (attr.POSITION != void 0)
+          prim.position = this.parseAccessor(attr.POSITION);
+        if (attr.NORMAL != void 0)
+          prim.normal = this.parseAccessor(attr.NORMAL);
+        if (attr.TANGENT != void 0)
+          prim.tangent = this.parseAccessor(attr.TANGENT);
+        if (attr.TEXCOORD_0 != void 0)
+          prim.texcoord_0 = this.parseAccessor(attr.TEXCOORD_0);
+        if (attr.TEXCOORD_1 != void 0)
+          prim.texcoord_1 = this.parseAccessor(attr.TEXCOORD_1);
+        if (attr.JOINTS_0 != void 0)
+          prim.joints_0 = this.parseAccessor(attr.JOINTS_0);
+        if (attr.WEIGHTS_0 != void 0)
+          prim.weights_0 = this.parseAccessor(attr.WEIGHTS_0);
+        if (attr.COLOR_0 != void 0)
+          prim.color_0 = this.parseAccessor(attr.COLOR_0);
+      }
       mesh.primitives.push(prim);
     }
     const nodes = this.getMeshNodes(mIdx);
@@ -621,10 +680,24 @@ class Gltf2Parser {
     const accessor = this.json.accessors[accID];
     const bufView = this.json.bufferViews[accessor.bufferView];
     if (bufView.byteStride) {
-      console.error("UNSUPPORTED - Parsing Stride Buffer");
-      return null;
+      const compLen = ComponentVarMap[accessor.type];
+      const byteSize = ComponentTypeMap[accessor.componentType][0];
+      if (bufView.byteStride !== compLen * byteSize) {
+        console.error("UNSUPPORTED - Parsing Interleaved Buffer With Accessor Object");
+        return null;
+      }
     }
     return new Accessor(accessor, bufView, this.bin);
+  }
+  isAccessorInterleaved(accID) {
+    const accessor = this.json.accessors[accID];
+    const bufView = this.json.bufferViews[accessor.bufferView];
+    if (bufView.byteStride) {
+      const compLen = ComponentVarMap[accessor.type];
+      const byteSize = ComponentTypeMap[accessor.componentType][0];
+      return bufView.byteStride !== compLen * byteSize;
+    }
+    return false;
   }
   static async fetch(url) {
     const res = await fetch(url);

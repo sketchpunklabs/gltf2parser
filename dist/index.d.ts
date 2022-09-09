@@ -25,6 +25,7 @@ declare class Gltf2Parser {
     getPoseByName(n: string): [any, number] | null;
     getPose(id?: string): Pose | null;
     parseAccessor(accID: number): Accessor | null;
+    isAccessorInterleaved(accID: number): boolean;
     static fetch(url: string): Promise<Gltf2Parser | null>;
 }
 export default Gltf2Parser;

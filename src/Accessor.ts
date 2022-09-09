@@ -11,6 +11,7 @@ type TAccessor   = {
     max            ?: Array<number>,
 };
 
+// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-accessor
 class Accessor{
     componentLen    = 0;
     elementCnt      = 0;
