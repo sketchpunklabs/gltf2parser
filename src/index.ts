@@ -7,7 +7,7 @@ import { Skin, SkinJoint }                      from './Skin';
 import { Animation, Track, ETransform, ELerp }  from './Animation';
 import { Texture }                              from './Texture';
 import { Pose }                                 from './Pose';
-import { ComponentTypeMap, ComponentVarMap }                      from './structs';
+import { ComponentTypeMap, ComponentVarMap }    from './structs';
 //#endregion
 
 class Gltf2Parser{
