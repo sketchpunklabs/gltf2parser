@@ -49,7 +49,7 @@ export default ( { command, mode } ) => {
         return {
             build: {
                 minify          : false,
-
+                target          : "esnext",
                 lib             : {
                     entry   : path.resolve( __dirname, "src/index.ts" ),
                     name    : "gltf2parser",

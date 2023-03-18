@@ -8,6 +8,7 @@ import { Animation, Track, ETransform, ELerp }  from './Animation';
 import { Texture }                              from './Texture';
 import { Pose }                                 from './Pose';
 import { ComponentTypeMap, ComponentVarMap }    from './structs';
+import { Material }                             from './Material';
 //#endregion
 
 class Gltf2Parser{
@@ -270,19 +271,49 @@ class Gltf2Parser{
     //#region MATERIALS
     // https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_010_Materials.md
 
-    getMaterial( id: number | undefined ) : any{
+    getMaterial( id: string | number | undefined ) : Material | null{
         if( !this.json.materials ){ console.warn( "No Materials in GLTF File" ); return null; }
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        const json = this.json;
-        let mat    = null;
-
+        // Find which material to parse
+        const json          = this.json;
+        let   idx: number   = -1;
         switch( typeof id ){
-            case "number" : if( id < json.materials.length ){ mat = json.materials[ id ].pbrMetallicRoughness; } break;
-            default       : mat = json.materials[ 0 ].pbrMetallicRoughness; break;
+            case 'number':
+                if( id >= json.materials.length ){ console.error( 'Material index out of bounds', id ); break; }
+                idx = id;
+                break;
+
+            case 'string':
+                for( let i=0; i < json.materials.length; i++ ){
+                    if( json.materials[i].name === id ){ idx = i; break; }
+                }
+                break;
+
+            default: idx = 0; break;
         }
 
+        if( idx === -1 ){ console.error( 'Material not found ', id ); return null; }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        const mat = new Material( json.materials[ idx ] );
+        mat.index = idx;
         return mat;
+    }
+
+    getAllMaterials():Record<string, Material>{
+        const rtn : Record< string, Material > = {};
+
+        if( this.json.materials ){
+            let mat: Material;
+            for( let i=0; i < this.json.materials.length; i++ ){
+                mat             = new Material( this.json.materials[ i ] );
+                mat.index       = i;
+                rtn[ mat.name ] = mat;
+            }
+        }
+
+        return rtn;
     }
 
     // https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#texture-data

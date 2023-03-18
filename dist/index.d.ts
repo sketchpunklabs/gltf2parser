@@ -5,6 +5,7 @@ import { Skin, SkinJoint } from './Skin';
 import { Animation, Track, ETransform, ELerp } from './Animation';
 import { Texture } from './Texture';
 import { Pose } from './Pose';
+import { Material } from './Material';
 declare class Gltf2Parser {
     json: any;
     bin: ArrayBuffer;
@@ -17,7 +18,8 @@ declare class Gltf2Parser {
     getSkinNames(): Array<string>;
     getSkinByName(n: string): [any, number] | null;
     getSkin(id: string | number | undefined): Skin | null;
-    getMaterial(id: number | undefined): any;
+    getMaterial(id: string | number | undefined): Material | null;
+    getAllMaterials(): Record<string, Material>;
     getTexture(id: number): Texture | null;
     getAnimationNames(): Array<string>;
     getAnimationByName(n: string): [any, number] | null;
