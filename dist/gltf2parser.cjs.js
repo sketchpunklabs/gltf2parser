@@ -280,26 +280,48 @@ class Pose {
   }
 }
 
+function gamma(v) {
+  return v <= 31308e-7 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+}
+function hex(r, g, b) {
+  return Math.round(r * 255) << 16 | Math.round(g * 255) << 8 | Math.round(b * 255);
+}
+function hexString(r, g, b) {
+  const rr = "0" + Math.round(r * 255).toString(16);
+  const gg = "0" + Math.round(g * 255).toString(16);
+  const bb = "0" + Math.round(b * 255).toString(16);
+  return ("#" + rr.slice(-2) + gg.slice(-2) + bb.slice(-2)).toUpperCase();
+}
 class Material {
   index = -1;
   name = "";
-  baseColor = 0;
-  baseColorGL = [0, 0, 0, 1];
+  baseColor = [0, 0, 0, 1];
   metallic = 0;
   roughness = 0;
   constructor(mat) {
     this.name = mat.name || window.crypto.randomUUID();
     if (mat.pbrMetallicRoughness) {
       if (mat.pbrMetallicRoughness.baseColorFactor) {
-        this.baseColorGL[0] = mat.pbrMetallicRoughness.baseColorFactor[0];
-        this.baseColorGL[1] = mat.pbrMetallicRoughness.baseColorFactor[1];
-        this.baseColorGL[2] = mat.pbrMetallicRoughness.baseColorFactor[2];
-        this.baseColorGL[3] = mat.pbrMetallicRoughness.baseColorFactor[3];
-        this.baseColor = Math.round(this.baseColorGL[0] * 255) << 16 | Math.round(this.baseColorGL[1] * 255) << 8 | Math.round(this.baseColorGL[2] * 255);
+        this.baseColor[0] = mat.pbrMetallicRoughness.baseColorFactor[0];
+        this.baseColor[1] = mat.pbrMetallicRoughness.baseColorFactor[1];
+        this.baseColor[2] = mat.pbrMetallicRoughness.baseColorFactor[2];
+        this.baseColor[3] = mat.pbrMetallicRoughness.baseColorFactor[3];
       }
       this.metallic = mat.pbrMetallicRoughness.metallicFactor || 0;
       this.roughness = mat.pbrMetallicRoughness.roughnessFactor || 0;
     }
+  }
+  get baseColorHex() {
+    return hex(this.baseColor[0], this.baseColor[1], this.baseColor[2]);
+  }
+  get baseColorGammaHex() {
+    return hex(gamma(this.baseColor[0]), gamma(this.baseColor[1]), gamma(this.baseColor[2]));
+  }
+  get baseColorString() {
+    return hexString(this.baseColor[0], this.baseColor[1], this.baseColor[2]);
+  }
+  get baseColorGammaString() {
+    return hexString(gamma(this.baseColor[0]), gamma(this.baseColor[1]), gamma(this.baseColor[2]));
   }
 }
 
