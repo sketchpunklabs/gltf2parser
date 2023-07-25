@@ -18,7 +18,7 @@ import { DracoDecoderModule } from './_lib/draco/draco_decoder_gltf.js';    // W
 // https://codelabs.developers.google.com/codelabs/draco-3d/index.html#4
 // https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_draco_mesh_compression
 
-//#region MAIN
+// #region MAIN
 let App;
 window.addEventListener( "load", async _=>{
     App = new Starter( { webgl2:true, grid:true } );
@@ -28,22 +28,38 @@ window.addEventListener( "load", async _=>{
     const gltf = await Gltf2.fetch( './_res/models/draco.glb' );
     gltf.useDraco( mod );
 
+    console.log( gltf.json );
 
     const gMesh = gltf.getMesh();
-    // console.log( gMesh );
+    console.log( gMesh );
 
     const geo = primitiveGeo( gMesh.primitives[0] );
-    // console.log( geo );
 
+    const gTex = gltf.getTexture( 0 );
+    // blobToImage( gTex.blob ).then( img=>document.body.appendChild( img ) );
 
-    const mesh = new THREE.Mesh( geo, new THREE.MeshBasicMaterial() );
+    const img       = await blobToImage( gTex.blob );
+    const tex       = new THREE.Texture( img );
+    tex.wrapT       = THREE.RepeatWrapping;// : ClampToEdgeWrapping;
+    tex.flipY       = false;
+    tex.needsUpdate = true; // Needed, else it may render as black
+
+    const mesh = new THREE.Mesh( geo, new THREE.MeshBasicMaterial( { map:tex } ) );
     mesh.scale.setScalar( 1 / 7972671.25 );
-    
     
     gltf.dispose();
     App.scene.add( mesh );
 });
 //#endregion
+
+function blobToImage(blob){
+    return new Promise( ( resolve, reject )=>{
+        const url   = URL.createObjectURL(blob);
+        const img   = new Image()
+        img.onload  = ()=>{ URL.revokeObjectURL( url ); resolve( img ) };
+        img.src     = url;
+    } );
+}
 
 function primitiveGeo( prim ){
     let geo;
