@@ -11,7 +11,6 @@ import { Texture }                              from './Texture';
 import { Pose }                                 from './Pose';
 import { ComponentTypeMap, ComponentVarMap }    from './structs';
 import { Material }                             from './Material';
-
 //#endregion
 
 class Gltf2Parser{

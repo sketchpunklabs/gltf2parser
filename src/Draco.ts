@@ -60,6 +60,8 @@ export default class Draco{
         
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         // Pull the indices data
+
+        // TODO: fix up a way to test how many verts there are then toggle between Uint16 and Uint32
         const tAry = new Uint32Array( this.faceCnt * 3 );
         const dAry = new this.mod.DracoUInt32Array();
         let ii;
