@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 //#region IMPORTS
 import parseGLB                                 from './Glb'; 
 import Accessor                                 from './Accessor';
 import InterleavedBuffer                        from './InterleavedBuffer';
+import Draco                                    from './Draco';
 import { Mesh, Primitive }                      from './Mesh';
 import { Skin, SkinJoint }                      from './Skin';
 import { Animation, Track, ETransform, ELerp }  from './Animation';
@@ -9,19 +11,38 @@ import { Texture }                              from './Texture';
 import { Pose }                                 from './Pose';
 import { ComponentTypeMap, ComponentVarMap }    from './structs';
 import { Material }                             from './Material';
+
 //#endregion
 
 class Gltf2Parser{
-    //#region MAIN
-    json    : any;
-    bin     : ArrayBuffer;
+    // #region MAIN
+    json        : any;
+    bin         : ArrayBuffer;
+    _needsDraco  : boolean = false;
+    _extDraco   ?: Draco   = undefined;
+
     constructor( json: any, bin ?: ArrayBuffer | null ){
         this.json = json;
         this.bin  = bin || new ArrayBuffer(0); // TODO, Fix for base64 inline buffer
-    }
-    //#endregion ///////////////////////////////////////////////////////////////////////
 
-    //#region NODES
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // Check for specific extensions
+        if( json.extensionsRequired ){
+            this._needsDraco = ( json.extensionsRequired.indexOf( 'KHR_draco_mesh_compression' ) !== -1 );
+        }
+    }
+
+    useDraco( mod: any ): this{
+        this._extDraco = new Draco( mod );
+        return this;
+    }
+
+    dispose(){
+        if( this._extDraco ) this._extDraco.dispose();
+    }
+    // #endregion
+
+    // #region NODES
     getNodeByName( n: string ) : [ any, number ] | null{
         let o: any, i: number;
         for( i=0; i < this.json.nodes.length; i++ ){
@@ -30,9 +51,9 @@ class Gltf2Parser{
         }
         return null;
     }    
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region MESHES
+    // #region MESHES
 
     getMeshNames() : Array<string>{
         const json = this.json, 
@@ -98,21 +119,33 @@ class Gltf2Parser{
                 prim.materialIdx    = p.material;
                 prim.materialName   = json.materials[ p.material ].name;
             }
-            
-            //------------------------------------------------------
-            if( p.indices       != undefined ) prim.indices    = this.parseAccessor( p.indices );
 
-            if( attr.POSITION && this.isAccessorInterleaved( attr.POSITION ) ){
-                prim.interleaved = new InterleavedBuffer( attr, this.json, this.bin );
+            if( this._needsDraco && p?.extensions?.KHR_draco_mesh_compression ){
+                if( this._extDraco ){
+                    const draco   = p.extensions.KHR_draco_mesh_compression;
+                    const bufView = this.json.bufferViews[ draco.bufferView ];
+
+                    this._extDraco.loadMesh( this.bin, bufView.byteOffset, bufView.byteLength );
+                    this._extDraco.loadPrimitive( prim, draco.attributes, attr, this.json );
+                }else{
+                    console.error( 'Mesh is draco compressed but ext is not loaded.' );
+                }
             }else{
-                if( attr.POSITION   != undefined ) prim.position   = this.parseAccessor( attr.POSITION );
-                if( attr.NORMAL     != undefined ) prim.normal     = this.parseAccessor( attr.NORMAL );
-                if( attr.TANGENT    != undefined ) prim.tangent    = this.parseAccessor( attr.TANGENT );
-                if( attr.TEXCOORD_0 != undefined ) prim.texcoord_0 = this.parseAccessor( attr.TEXCOORD_0 );
-                if( attr.TEXCOORD_1 != undefined ) prim.texcoord_1 = this.parseAccessor( attr.TEXCOORD_1 );
-                if( attr.JOINTS_0   != undefined ) prim.joints_0   = this.parseAccessor( attr.JOINTS_0 );
-                if( attr.WEIGHTS_0  != undefined ) prim.weights_0  = this.parseAccessor( attr.WEIGHTS_0 );
-                if( attr.COLOR_0    != undefined ) prim.color_0    = this.parseAccessor( attr.COLOR_0 );
+                //------------------------------------------------------
+                if( p.indices       != undefined ) prim.indices    = this.parseAccessor( p.indices );
+
+                if( attr.POSITION && this.isAccessorInterleaved( attr.POSITION ) ){
+                    prim.interleaved = new InterleavedBuffer( attr, this.json, this.bin );
+                }else{
+                    if( attr.POSITION   != undefined ) prim.position   = this.parseAccessor( attr.POSITION );
+                    if( attr.NORMAL     != undefined ) prim.normal     = this.parseAccessor( attr.NORMAL );
+                    if( attr.TANGENT    != undefined ) prim.tangent    = this.parseAccessor( attr.TANGENT );
+                    if( attr.TEXCOORD_0 != undefined ) prim.texcoord_0 = this.parseAccessor( attr.TEXCOORD_0 );
+                    if( attr.TEXCOORD_1 != undefined ) prim.texcoord_1 = this.parseAccessor( attr.TEXCOORD_1 );
+                    if( attr.JOINTS_0   != undefined ) prim.joints_0   = this.parseAccessor( attr.JOINTS_0 );
+                    if( attr.WEIGHTS_0  != undefined ) prim.weights_0  = this.parseAccessor( attr.WEIGHTS_0 );
+                    if( attr.COLOR_0    != undefined ) prim.color_0    = this.parseAccessor( attr.COLOR_0 );
+                }
             }
 
             //------------------------------------------------------
@@ -131,9 +164,9 @@ class Gltf2Parser{
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         return mesh;
     }
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region SKINS
+    // #region SKINS
 
     getSkinNames() : Array<string> {
         const json = this.json, 
@@ -266,9 +299,9 @@ class Gltf2Parser{
         return skin;
     }
     
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region MATERIALS
+    // #region MATERIALS
     // https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_010_Materials.md
 
     getMaterial( id: string | number | undefined ) : Material | null{
@@ -334,9 +367,9 @@ class Gltf2Parser{
         return tex;
     }
 
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region ANIMATION
+    // #region ANIMATION
     /*
     https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#animations
     https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#appendix-c-spline-interpolation (Has math for cubic spline)
@@ -398,18 +431,14 @@ class Gltf2Parser{
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const json = this.json;
         let js  : any | null    = null;
-        let idx : number | null = null;
 
         switch( typeof id ){
-            case "string" : {
+            case 'string' : {
                 const tup = this.getAnimationByName( id );
-                if( tup !== null ){
-                    js  = tup[ 0 ]; // Object Reference
-                    idx = tup[ 1 ]; // Object Index
-                }
+                if( tup !== null ) js  = tup[ 0 ]; // Object Reference
             break; }
-            case "number" : if( id < json.animations.length ){ js = json.animations[ id ]; idx = id; } break;
-            default       : js = json.animations[ 0 ]; idx = 0; break;
+            case 'number' : if( id < json.animations.length ){ js = json.animations[ id ]; } break;
+            default       : js = json.animations[ 0 ]; break;
         }
 
         if( js == null ){ console.warn( "No Animation Found", id ); return null; }
@@ -427,7 +456,7 @@ class Gltf2Parser{
             // Search every skin's joints for the node index
             // if found, the index is the joint index that
             // can be used for skinning.
-            for( let skin of this.json.skins ){
+            for( const skin of this.json.skins ){
                 jIdx = skin.joints.indexOf( nIdx );
                 if( jIdx != -1 && jIdx != undefined ){
                     NJMap.set( nIdx, jIdx );  // Map the indices
@@ -488,9 +517,9 @@ class Gltf2Parser{
 
         return anim;
     }
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region POSES ( CUSTOM, NOT PART OF GLTF SPEC )
+    // #region POSES ( CUSTOM, NOT PART OF GLTF SPEC )
     getPoseByName( n: string ) : [ any, number ] | null{
         let o: any, i: number;
         for( i=0; i < this.json.poses.length; i++ ){
@@ -506,17 +535,13 @@ class Gltf2Parser{
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const json = this.json;
         let js  : any | null    = null;
-        let idx : number | null = null;
 
         switch( typeof id ){
-            case "string" : {
+            case 'string' : {
                 const tup = this.getPoseByName( id );
-                if( tup !== null ){
-                    js  = tup[ 0 ]; // Object Reference
-                    idx = tup[ 1 ]; // Object Index
-                }
+                if( tup !== null ) js  = tup[ 0 ]; // Object Reference
             break; }
-            default       : js = json.poses[ 0 ]; idx = 0; break;
+            default       : js = json.poses[ 0 ]; break;
         }
 
         if( js == null ){ console.warn( "No Pose Found", id ); return null; }
@@ -531,13 +556,14 @@ class Gltf2Parser{
 
         return pose;
     }
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region SUPPORT
+    // #region SUPPORT
     // https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md
     parseAccessor( accID: number ) : Accessor | null {
         const accessor      = this.json.accessors[ accID ];
         const bufView       = this.json.bufferViews[ accessor.bufferView ];
+        console.log( accID, accessor, bufView );
 
         if( bufView.byteStride ){
             // If the total byte size is the same as the stride, its not really interleaved.
@@ -549,7 +575,7 @@ class Gltf2Parser{
             }
         }
 
-        return new Accessor( accessor, bufView, this.bin );
+        return new Accessor().fromBin( accessor, bufView, this.bin );
     }
 
     isAccessorInterleaved( accID: number ): boolean{
@@ -565,9 +591,9 @@ class Gltf2Parser{
 
         return false;
     }
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 
-    //#region STATIC
+    // #region STATIC
 
     static async fetch( url: string ) : Promise< Gltf2Parser | null >{
         const res = await fetch( url );
@@ -575,7 +601,7 @@ class Gltf2Parser{
 
         switch( url.slice( -4 ).toLocaleLowerCase() ){
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            case 'gltf':
+            case 'gltf':{
                 let bin : ArrayBuffer | undefined;
                 const json = await res.json();
 
@@ -585,17 +611,19 @@ class Gltf2Parser{
                 }
                 
                 return new Gltf2Parser( json, bin );
+            }
             
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            case '.glb':
+            case '.glb':{
                 const tuple = await parseGLB( res );
                 return ( tuple )? new Gltf2Parser( tuple[0], tuple[1] ) : null;
+            }
         }
 
         return null;
     }
 
-    //#endregion ///////////////////////////////////////////////////////////////////////
+    // #endregion
 }
 
 export default Gltf2Parser;

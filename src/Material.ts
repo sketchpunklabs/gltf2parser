@@ -1,7 +1,10 @@
 import { TVec4 } from './types';
 
-/** Blender gamma crrects the colors before creating hex */
-function gamma( v:number ){ return (v <= 0.0031308)? v * 12.92 : 1.055 * Math.pow( v, 1.0/2.4) - 0.055; }
+function gamma( v:number ){ 
+    return ( v <= 0.0031308 )? 
+        v * 12.92 : 
+        1.055 * Math.pow( v, 1.0/2.4) - 0.055;
+}
 
 function hex( r:number, g:number, b:number ): number{
     return  Math.round( r * 255 ) << 16 |
@@ -50,3 +53,4 @@ export class Material{
     get baseColorString(): string{ return hexString( this.baseColor[0], this.baseColor[1], this.baseColor[2] ); }
     get baseColorGammaString(): string{ return hexString( gamma(this.baseColor[0]), gamma(this.baseColor[1]), gamma(this.baseColor[2]) ); }
 }
+

@@ -1,4 +1,4 @@
-import { TTypeArrayCon } from "./types";
+import { TTypeArrayCon } from './types';
 
 // ByteSize : TypeArray : JS Type name, Gltf Type name
 export const ComponentTypeMap : Record<number, [number, TTypeArrayCon, string, string ]>= { 

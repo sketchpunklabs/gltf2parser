@@ -1,0 +1,118 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title></title></head><body>
+<script type="module">
+
+//#region IMPORTS
+import Starter, { THREE }       from './_lib/Starter.js';
+import { UtilGltf2, Gltf2 }     from './_lib/UtilGltf2.js';
+
+// https://github.com/google/draco/tree/master/javascript   Get Draco Wasm files
+// import { DracoDecoderModule } from './_lib/draco/draco_decoder.js';      // Works
+import { DracoDecoderModule } from './_lib/draco/draco_decoder_gltf.js';    // Works but its smaller
+//#endregion
+
+// https://github.com/Reon90/redcube/blob/master/src/objects/geometry.ts#L107
+// https://github.com/Reon90/redcube/blob/77ea672bf56c7234e6a7d3eed55e95dfa1ef7624/src/decoder.ts#L4
+// https://snyk.io/advisor/npm-package/draco3d/functions/draco3d.createDecoderModule
+// https://codelabs.developers.google.com/codelabs/draco-3d/index.html#4
+// https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_draco_mesh_compression
+
+//#region MAIN
+let App;
+window.addEventListener( "load", async _=>{
+    App = new Starter( { webgl2:true, grid:true } );
+    App.setCamera( 0, 20, 4, [0,0.8,0] ).render();
+
+    const mod  = await DracoDecoderModule();
+    const gltf = await Gltf2.fetch( './_res/models/draco.glb' );
+    gltf.useDraco( mod );
+
+
+    const gMesh = gltf.getMesh();
+    console.log( gMesh );
+
+    const geo = primitiveGeo( gMesh.primitives[0] );
+    // console.log( geo );
+
+
+    const mesh = new THREE.Mesh( geo, new THREE.MeshBasicMaterial() );
+    mesh.scale.setScalar( 1 / 7972671.25 );
+    
+    
+    gltf.dispose();
+    App.scene.add( mesh );
+});
+//#endregion
+
+/*
+function decodeMesh(byteArray) {
+      // Create the Draco decoder.
+      const decoder = new decoderModule.Decoder();
+
+      // Create a buffer to hold the encoded data.
+      const buffer = new decoderModule.DecoderBuffer();
+      buffer.Init(byteArray, byteArray.length);
+
+      // Decode the encoded geometry.
+      let outputGeometry = new decoderModule.Mesh();
+      let decodingStatus = decoder.DecodeBufferToMesh(buffer, outputGeometry);
+
+      alert('Num points = ' + outputGeometry.num_points());
+
+      // You must explicitly delete objects created from the DracoModule
+      // or Decoder.
+      decoderModule.destroy(outputGeometry);
+      decoderModule.destroy(decoder);
+      decoderModule.destroy(buffer);
+    }
+    */
+
+function primitiveGeo( prim ){
+    let geo;
+    geo = new THREE.BufferGeometry();
+    geo.setAttribute( 'position', new THREE.BufferAttribute( prim.position.data, prim.position.componentLen ) );
+
+    if( prim.indices )    geo.setIndex( new THREE.BufferAttribute( prim.indices.data, 1 ) );
+    if( prim.normal )     geo.setAttribute( 'normal', new THREE.BufferAttribute( prim.normal.data, prim.normal.componentLen ) );
+    if( prim.texcoord_0 ) geo.setAttribute( 'uv', new THREE.BufferAttribute( prim.texcoord_0.data, prim.texcoord_0.componentLen ) );
+
+    return geo;
+}
+
+function loadMesh( gltf, name=null, mat=null ){
+    const o = gltf.getMesh( name );
+    let geo, prim, pmat;
+
+    // if( o.primitives.length == 1 ){
+    //     prim = o.primitives[ 0 ];
+
+    //     if( mat )                           pmat = mat;
+    //     else if( prim.materialIdx != null ) pmat = this.loadMaterial( gltf, prim.materialIdx );
+        
+    //     geo = this.primitiveGeo( prim );
+    //     return new THREE.Mesh( geo, pmat );
+    // }else{
+    //     let mesh, m, c ;
+    //     const grp = new THREE.Group();
+    //     for( prim of o.primitives ){
+
+    //         if( mat ){
+    //             pmat = mat;
+    //         }else if( prim.materialIdx != null ){
+    //             pmat = this.loadMaterial( gltf, prim.materialIdx );
+    //         }
+        
+    //         geo     = this.primitiveGeo( prim );
+    //         mesh    = new THREE.Mesh( geo, pmat );
+            
+    //         grp.add( mesh );
+    //     }
+    //     return grp;
+    // }
+}
+
+// draco3dgltf
+
+</script>
+</body></html>

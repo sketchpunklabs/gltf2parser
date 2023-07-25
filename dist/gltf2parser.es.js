@@ -69,7 +69,7 @@ class Accessor {
   boundMax = null;
   type = null;
   data = null;
-  constructor(accessor, bufView, bin) {
+  fromBin(accessor, bufView, bin) {
     const [
       compByte,
       compType,
@@ -77,7 +77,7 @@ class Accessor {
     ] = ComponentTypeMap[accessor.componentType];
     if (!compType) {
       console.error("Unknown Component Type for Accessor", accessor.componentType);
-      return;
+      return this;
     }
     this.componentLen = ComponentVarMap[accessor.type];
     this.elementCnt = accessor.count;
@@ -90,6 +90,7 @@ class Accessor {
       const size = this.elementCnt * this.componentLen;
       this.data = new compType(bin, this.byteOffset, size);
     }
+    return this;
   }
 }
 
@@ -145,6 +146,119 @@ class InterleavedBuffer {
     if (bin) {
       this.data = new Float32Array(bin, bView.byteOffset || 0, this.elementCnt * this.componentLen);
     }
+  }
+}
+
+class Draco {
+  mod;
+  decoder;
+  mesh;
+  faceCnt = 0;
+  vertCnt = 0;
+  constructor(mod) {
+    this.mod = mod;
+    this.decoder = new this.mod.Decoder();
+  }
+  dispose() {
+    this.mod.destroy(this.decoder);
+    if (this.mesh)
+      this.mod.destroy(this.mesh);
+    this.mod = null;
+  }
+  loadMesh(bin, offset, len) {
+    const slice = new Int8Array(bin, offset, len);
+    const buf = new this.mod.DecoderBuffer();
+    buf.Init(slice, slice.byteLength);
+    this.mesh = new this.mod.Mesh();
+    this.decoder.DecodeBufferToMesh(buf, this.mesh);
+    this.mod.destroy(buf);
+    this.faceCnt = this.mesh.num_faces();
+    this.vertCnt = this.mesh.num_points();
+    return this;
+  }
+  loadPrimitive(prim, dAttr, gAttr, json) {
+    if (dAttr.POSITION != void 0)
+      prim.position = this.parseAttribute(dAttr.POSITION, gAttr.POSITION, json);
+    if (dAttr.NORMAL != void 0)
+      prim.normal = this.parseAttribute(dAttr.NORMAL, gAttr.NORMAL, json);
+    if (dAttr.TEXCOORD_0 != void 0)
+      prim.texcoord_0 = this.parseAttribute(dAttr.TEXCOORD_0, gAttr.TEXCOORD_0, json);
+    const tAry = new Uint32Array(this.faceCnt * 3);
+    const dAry = new this.mod.DracoUInt32Array();
+    let ii;
+    for (let i = 0; i < this.faceCnt; i++) {
+      this.decoder.GetFaceFromMesh(this.mesh, i, dAry);
+      ii = i * 3;
+      tAry[ii + 0] = dAry.GetValue(0);
+      tAry[ii + 1] = dAry.GetValue(1);
+      tAry[ii + 2] = dAry.GetValue(2);
+    }
+    this.mod.destroy(dAry);
+    prim.indices = new Accessor();
+    prim.indices.componentLen = 1;
+    prim.indices.elementCnt = this.faceCnt;
+    prim.indices.byteSize = tAry.byteLength;
+    prim.indices.data = tAry;
+    prim.indices.type = "UNSIGNED_INT";
+    this.mod.destroy(this.mesh);
+    this.mesh = void 0;
+    this.faceCnt = 0;
+    this.vertCnt = 0;
+  }
+  parseAttribute(dIdx, gIdx, json) {
+    const accessor = json.accessors[gIdx];
+    const id = this.decoder.GetAttributeByUniqueId(this.mesh, dIdx);
+    const out = new Accessor();
+    const compByte = ComponentTypeMap[accessor.componentType][0];
+    const dType = ComponentTypeMap[accessor.componentType][3];
+    out.componentLen = ComponentVarMap[accessor.type];
+    out.elementCnt = accessor.count;
+    out.byteSize = out.elementCnt * out.componentLen * compByte;
+    out.boundMin = accessor.min ? accessor.min.slice(0) : null;
+    out.boundMax = accessor.max ? accessor.max.slice(0) : null;
+    out.type = ComponentTypeMap[accessor.componentType][2];
+    out.data = this.decodeAttributeData(id, dType, out.componentLen * this.vertCnt);
+    return out;
+  }
+  decodeAttributeData(id, type, len) {
+    let tAry;
+    let dAry;
+    switch (type) {
+      case "BYTE":
+        tAry = new Uint8Array(len);
+        dAry = new this.mod.DracoInt8Array();
+        this.decoder.GetAttributeInt8ForAllPoints(this.mesh, id, dAry);
+        return dAry;
+      case "UNSIGNED_BYTE":
+        tAry = new Int16Array(len);
+        dAry = new this.mod.DracoUInt8Array();
+        this.decoder.GetAttributeUInt8ForAllPoints(this.mesh, id, dAry);
+        break;
+      case "SHORT":
+        tAry = new Int16Array(len);
+        dAry = new this.mod.DracoInt16Array();
+        this.decoder.GetAttributeInt16ForAllPoints(this.mesh, id, dAry);
+        break;
+      case "UNSIGNED_SHORT":
+        tAry = new Uint16Array(len);
+        dAry = new this.mod.DracoUInt16Array();
+        this.decoder.GetAttributeUInt16ForAllPoints(this.mesh, id, dAry);
+        break;
+      case "UNSIGNED_INT":
+        tAry = new Uint32Array(len);
+        dAry = new this.mod.DracoUInt32Array();
+        this.decoder.GetAttributeUInt32ForAllPoints(this.mesh, id, dAry);
+        break;
+      case "FLOAT":
+        tAry = new Float32Array(len);
+        dAry = new this.mod.DracoFloat32Array();
+        this.decoder.GetAttributeFloatForAllPoints(this.mesh, id, dAry);
+        break;
+    }
+    for (let i = 0; i < len; i++)
+      tAry[i] = dAry.GetValue(i);
+    this.mod.destroy(dAry);
+    return tAry;
   }
 }
 
@@ -324,9 +438,22 @@ class Material {
 class Gltf2Parser {
   json;
   bin;
+  _needsDraco = false;
+  _extDraco = void 0;
   constructor(json, bin) {
     this.json = json;
     this.bin = bin || new ArrayBuffer(0);
+    if (json.extensionsRequired) {
+      this._needsDraco = json.extensionsRequired.indexOf("KHR_draco_mesh_compression") !== -1;
+    }
+  }
+  useDraco(mod) {
+    this._extDraco = new Draco(mod);
+    return this;
+  }
+  dispose() {
+    if (this._extDraco)
+      this._extDraco.dispose();
   }
   getNodeByName(n) {
     let o, i;
@@ -405,27 +532,38 @@ class Gltf2Parser {
         prim.materialIdx = p.material;
         prim.materialName = json.materials[p.material].name;
       }
-      if (p.indices != void 0)
-        prim.indices = this.parseAccessor(p.indices);
-      if (attr.POSITION && this.isAccessorInterleaved(attr.POSITION)) {
-        prim.interleaved = new InterleavedBuffer(attr, this.json, this.bin);
+      if (this._needsDraco && p?.extensions?.KHR_draco_mesh_compression) {
+        if (this._extDraco) {
+          const draco = p.extensions.KHR_draco_mesh_compression;
+          const bufView = this.json.bufferViews[draco.bufferView];
+          this._extDraco.loadMesh(this.bin, bufView.byteOffset, bufView.byteLength);
+          this._extDraco.loadPrimitive(prim, draco.attributes, attr, this.json);
+        } else {
+          console.error("Mesh is draco compressed but ext is not loaded.");
+        }
       } else {
-        if (attr.POSITION != void 0)
-          prim.position = this.parseAccessor(attr.POSITION);
-        if (attr.NORMAL != void 0)
-          prim.normal = this.parseAccessor(attr.NORMAL);
-        if (attr.TANGENT != void 0)
-          prim.tangent = this.parseAccessor(attr.TANGENT);
-        if (attr.TEXCOORD_0 != void 0)
-          prim.texcoord_0 = this.parseAccessor(attr.TEXCOORD_0);
-        if (attr.TEXCOORD_1 != void 0)
-          prim.texcoord_1 = this.parseAccessor(attr.TEXCOORD_1);
-        if (attr.JOINTS_0 != void 0)
-          prim.joints_0 = this.parseAccessor(attr.JOINTS_0);
-        if (attr.WEIGHTS_0 != void 0)
-          prim.weights_0 = this.parseAccessor(attr.WEIGHTS_0);
-        if (attr.COLOR_0 != void 0)
-          prim.color_0 = this.parseAccessor(attr.COLOR_0);
+        if (p.indices != void 0)
+          prim.indices = this.parseAccessor(p.indices);
+        if (attr.POSITION && this.isAccessorInterleaved(attr.POSITION)) {
+          prim.interleaved = new InterleavedBuffer(attr, this.json, this.bin);
+        } else {
+          if (attr.POSITION != void 0)
+            prim.position = this.parseAccessor(attr.POSITION);
+          if (attr.NORMAL != void 0)
+            prim.normal = this.parseAccessor(attr.NORMAL);
+          if (attr.TANGENT != void 0)
+            prim.tangent = this.parseAccessor(attr.TANGENT);
+          if (attr.TEXCOORD_0 != void 0)
+            prim.texcoord_0 = this.parseAccessor(attr.TEXCOORD_0);
+          if (attr.TEXCOORD_1 != void 0)
+            prim.texcoord_1 = this.parseAccessor(attr.TEXCOORD_1);
+          if (attr.JOINTS_0 != void 0)
+            prim.joints_0 = this.parseAccessor(attr.JOINTS_0);
+          if (attr.WEIGHTS_0 != void 0)
+            prim.weights_0 = this.parseAccessor(attr.WEIGHTS_0);
+          if (attr.COLOR_0 != void 0)
+            prim.color_0 = this.parseAccessor(attr.COLOR_0);
+        }
       }
       mesh.primitives.push(prim);
     }
@@ -633,9 +771,8 @@ class Gltf2Parser {
     switch (typeof id) {
       case "string": {
         const tup = this.getAnimationByName(id);
-        if (tup !== null) {
+        if (tup !== null)
           js = tup[0];
-        }
         break;
       }
       case "number":
@@ -658,7 +795,7 @@ class Gltf2Parser {
       let jIdx = NJMap.get(nIdx);
       if (jIdx != void 0)
         return jIdx;
-      for (let skin of this.json.skins) {
+      for (const skin of this.json.skins) {
         jIdx = skin.joints.indexOf(nIdx);
         if (jIdx != -1 && jIdx != void 0) {
           NJMap.set(nIdx, jIdx);
@@ -718,9 +855,8 @@ class Gltf2Parser {
     switch (typeof id) {
       case "string": {
         const tup = this.getPoseByName(id);
-        if (tup !== null) {
+        if (tup !== null)
           js = tup[0];
-        }
         break;
       }
       default:
@@ -741,6 +877,7 @@ class Gltf2Parser {
   parseAccessor(accID) {
     const accessor = this.json.accessors[accID];
     const bufView = this.json.bufferViews[accessor.bufferView];
+    console.log(accID, accessor, bufView);
     if (bufView.byteStride) {
       const compLen = ComponentVarMap[accessor.type];
       const byteSize = ComponentTypeMap[accessor.componentType][0];
@@ -749,7 +886,7 @@ class Gltf2Parser {
         return null;
       }
     }
-    return new Accessor(accessor, bufView, this.bin);
+    return new Accessor().fromBin(accessor, bufView, this.bin);
   }
   isAccessorInterleaved(accID) {
     const accessor = this.json.accessors[accID];
@@ -766,7 +903,7 @@ class Gltf2Parser {
     if (!res.ok)
       return null;
     switch (url.slice(-4).toLocaleLowerCase()) {
-      case "gltf":
+      case "gltf": {
         let bin;
         const json = await res.json();
         if (json.buffers && json.buffers.length > 0) {
@@ -774,9 +911,11 @@ class Gltf2Parser {
           bin = await fetch(path + json.buffers[0].uri).then((r) => r.arrayBuffer());
         }
         return new Gltf2Parser(json, bin);
-      case ".glb":
+      }
+      case ".glb": {
         const tuple = await parseGLB(res);
         return tuple ? new Gltf2Parser(tuple[0], tuple[1]) : null;
+      }
     }
     return null;
   }

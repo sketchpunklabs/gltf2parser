@@ -22,12 +22,12 @@ class Accessor{
     type     : string | null = null;
     data     : TTypeArray | null = null;
 
-    constructor( accessor: TAccessor, bufView: TBufferView, bin: ArrayBuffer ){
+    fromBin( accessor: TAccessor, bufView: TBufferView, bin: ArrayBuffer ): this{
         const [ compByte,                                                   // Type Byte Size
                 compType,
                 typeName ]  = ComponentTypeMap[ accessor.componentType ];   // Ref to TypeArray
 
-        if( !compType ){ console.error( "Unknown Component Type for Accessor", accessor.componentType ); return; }
+        if( !compType ){ console.error( "Unknown Component Type for Accessor", accessor.componentType ); return this; }
 
         this.componentLen = ComponentVarMap[ accessor.type ];               // How many Components in Value
         this.elementCnt   = accessor.count;                                 // Like, How many Vector3s exist?
@@ -41,7 +41,9 @@ class Accessor{
             const size = this.elementCnt * this.componentLen;
             this.data  = new compType( bin, this.byteOffset, size );
         }
-    }
+
+        return this;
+    }    
 }
 
 export default Accessor;
