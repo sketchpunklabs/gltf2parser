@@ -15,8 +15,8 @@ import { Material }                             from './Material';
 
 class Gltf2Parser{
     // #region MAIN
-    json        : any;
-    bin         : ArrayBuffer;
+    json         : any;
+    bin          : ArrayBuffer;
     _needsDraco  : boolean = false;
     _extDraco   ?: Draco   = undefined;
 
@@ -31,6 +31,7 @@ class Gltf2Parser{
         }
     }
 
+    get needsDraco(){ return this._needsDraco; }
     useDraco( mod: any ): this{
         this._extDraco = new Draco( mod );
         return this;
@@ -597,6 +598,9 @@ class Gltf2Parser{
     static async fetch( url: string ) : Promise< Gltf2Parser | null >{
         const res = await fetch( url );
         if( !res.ok ) return null;
+        
+        // const i   = url.lastIndexOf( '.' );
+        // const ext = url.substr( i, 4 );
 
         switch( url.slice( -4 ).toLocaleLowerCase() ){
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

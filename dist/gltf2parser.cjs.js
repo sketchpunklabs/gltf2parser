@@ -451,6 +451,9 @@ class Gltf2Parser {
       this._needsDraco = json.extensionsRequired.indexOf("KHR_draco_mesh_compression") !== -1;
     }
   }
+  get needsDraco() {
+    return this._needsDraco;
+  }
   useDraco(mod) {
     this._extDraco = new Draco(mod);
     return this;
