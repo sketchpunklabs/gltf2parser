@@ -37,4 +37,4 @@ declare class Gltf2Parser {
     static fetch(url: string): Promise<Gltf2Parser | null>;
 }
 export default Gltf2Parser;
-export { parseGLB, Accessor, Texture, Pose, Mesh, Primitive, Skin, SkinJoint, Animation, Track, ETransform, ELerp, };
+export { parseGLB, Accessor, Texture, Pose, Mesh, Primitive, Skin, SkinJoint, Animation, Track, ETransform, ELerp, Gltf2Parser };
