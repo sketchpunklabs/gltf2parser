@@ -51,6 +51,7 @@ const ComponentTypeMap = {
   5126: [4, Float32Array, "float", "FLOAT"]
 };
 const ComponentVarMap = {
+  // Component Length of Each Var Type
   SCALAR: 1,
   VEC2: 2,
   VEC3: 3,
@@ -72,6 +73,7 @@ class Accessor {
   fromBin(accessor, bufView, bin) {
     const [
       compByte,
+      // Type Byte Size
       compType,
       typeName
     ] = ComponentTypeMap[accessor.componentType];
@@ -150,6 +152,7 @@ class InterleavedBuffer {
 }
 
 class Draco {
+  // #region MAIN
   mod;
   decoder;
   mesh;
@@ -159,12 +162,15 @@ class Draco {
     this.mod = mod;
     this.decoder = new this.mod.Decoder();
   }
+  // #endregion
+  // #region METHODS
   dispose() {
     this.mod.destroy(this.decoder);
     if (this.mesh)
       this.mod.destroy(this.mesh);
     this.mod = null;
   }
+  // Decode BIN data into Draco Mesh Data
   loadMesh(bin, offset, len) {
     const slice = new Int8Array(bin, offset, len);
     const buf = new this.mod.DecoderBuffer();
@@ -176,6 +182,9 @@ class Draco {
     this.vertCnt = this.mesh.num_points();
     return this;
   }
+  // #endregion
+  // #region HELPERS
+  // Load all the attributes of a primitive
   loadPrimitive(prim, dAttr, gAttr, json) {
     if (dAttr.POSITION != void 0)
       prim.position = this.parseAttribute(dAttr.POSITION, gAttr.POSITION, json);
@@ -205,6 +214,7 @@ class Draco {
     this.faceCnt = 0;
     this.vertCnt = 0;
   }
+  // Parse Mesh Attribute
   parseAttribute(dIdx, gIdx, json) {
     const accessor = json.accessors[gIdx];
     const id = this.decoder.GetAttributeByUniqueId(this.mesh, dIdx);
@@ -220,6 +230,7 @@ class Draco {
     out.data = this.decodeAttributeData(id, dType, out.componentLen * this.vertCnt);
     return out;
   }
+  // Decoding attribute data from DracoMesh
   decodeAttributeData(id, type, len) {
     let tAry;
     let dAry;
@@ -260,15 +271,22 @@ class Draco {
     this.mod.destroy(dAry);
     return tAry;
   }
+  // #endregion
 }
 
 class Mesh {
   index = null;
+  // Index in Mesh Collection
   name = null;
+  // Mesh Name
   primitives = [];
+  // Mesh is made up of more then one Primative
   position = null;
+  // Node's Position
   rotation = null;
+  // Node's Rotation
   scale = null;
+  // Node's Scale
 }
 class Primitive {
   materialName = null;
@@ -287,20 +305,35 @@ class Primitive {
 
 class Skin {
   index = null;
+  // Index in Mesh Collection
   name = null;
+  // Skin Name
   joints = [];
+  // Collection of Joints
+  // Sometimes Skin Objects will have their own transform in nodes
+  // Tends to come from FBX to GLTF conversion in blender.
   position = null;
+  // Local Space Position
   rotation = null;
+  // Local Space Rotation
   scale = null;
+  // Local Space Scale
 }
 class SkinJoint {
   name = null;
+  // Name of Joint
   index = null;
+  // Joint Index
   parentIndex = null;
+  // Parent Joint Index, Null if its a Root Joint
   bindMatrix = null;
+  // Inverted WorldSpace Transform
   position = null;
+  // Local Space Position
   rotation = null;
+  // Local Space Rotation
   scale = null;
+  // Local Space Scale
 }
 
 const ETransform = {
@@ -314,8 +347,11 @@ const ELerp = {
   Cubic: 2
 };
 class Track {
+  //#region ENUMS
   static Transform = ETransform;
   static Lerp = ELerp;
+  //#endregion
+  //#region MAIN
   transform = ETransform.Pos;
   interpolation = ELerp.Step;
   jointIndex = 0;
@@ -348,6 +384,7 @@ class Track {
     }
     return t;
   }
+  //#endregion
 }
 class Animation {
   name = "";
@@ -361,12 +398,17 @@ class Animation {
 
 class Texture {
   index = null;
+  // Index in Texture Collection
   name = null;
+  // Texture Name
   mime = null;
+  // Texture Mime
   blob = null;
+  // Image Binary
 }
 
 class PoseJoint {
+  //#region MAIN
   index;
   rot;
   pos;
@@ -377,6 +419,7 @@ class PoseJoint {
     this.pos = pos;
     this.scl = scl;
   }
+  //#endregion
 }
 class Pose {
   name = "";
@@ -408,6 +451,7 @@ class Material {
   baseColor = [0, 0, 0, 1];
   metallic = 0;
   roughness = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(mat) {
     this.name = mat.name || window.crypto.randomUUID();
     if (mat.pbrMetallicRoughness) {
@@ -436,6 +480,7 @@ class Material {
 }
 
 class Gltf2Parser {
+  // #region MAIN
   json;
   bin;
   _needsDraco = false;
@@ -458,6 +503,8 @@ class Gltf2Parser {
     if (this._extDraco)
       this._extDraco.dispose();
   }
+  // #endregion
+  // #region NODES
   getNodeByName(n) {
     let o, i;
     for (i = 0; i < this.json.nodes.length; i++) {
@@ -467,6 +514,8 @@ class Gltf2Parser {
     }
     return null;
   }
+  // #endregion
+  // #region MESHES
   getMeshNames() {
     const json = this.json, rtn = [];
     let i;
@@ -581,6 +630,8 @@ class Gltf2Parser {
     }
     return mesh;
   }
+  // #endregion
+  // #region SKINS
   getSkinNames() {
     const json = this.json, rtn = [];
     let i;
@@ -688,6 +739,9 @@ class Gltf2Parser {
     }
     return skin;
   }
+  // #endregion
+  // #region MATERIALS
+  // https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_010_Materials.md
   getMaterial(id) {
     if (!this.json.materials) {
       console.warn("No Materials in GLTF File");
@@ -735,6 +789,7 @@ class Gltf2Parser {
     }
     return rtn;
   }
+  // https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#texture-data
   getTexture(id) {
     const js = this.json;
     const t = js.textures[id];
@@ -748,6 +803,43 @@ class Gltf2Parser {
     tex.blob = new Blob([bAry], { type: img.mimeType });
     return tex;
   }
+  // #endregion
+  // #region ANIMATION
+  /*
+      https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#animations
+      https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#appendix-c-spline-interpolation (Has math for cubic spline)
+      https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#reference-animation
+      animation = {
+          frame_cnt		: int
+          time			: float,
+          times			: [ float32array, float32array, etc ],
+          tracks			: [
+              { 
+                  type		: "rot || pos || scl",
+                  time_idx 	: 0,
+                  joint_idx	: 0,
+                  lerp 		: "LINEAR || STEP || CUBICSPLINE",
+                  data		: float32array,
+              },
+          ]
+      }
+      {   
+          name: '',
+          channels: [ { 
+              sampler: SAMPLER_INDEX, 
+              target:{ 
+                  node : NODE_INDEX, ( NEED TO TRANSLATE NODE INDEX TO JOINT INDEX )
+                  path : 'translation' | 'rotation' | 'scale'
+              } 
+          ] ],
+          samplers: [ { 
+              input: ACCESSOR_INDEX_FOR_KEYFRAME_TIMESTAMP, 
+              interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE', 
+              output: ACCESSOR_INDEX_FOR_KEYFRAME_TRANFORM_VALUE,
+          } ],
+      }
+  
+      */
   getAnimationNames() {
     const json = this.json, rtn = [];
     let i;
@@ -839,6 +931,8 @@ class Gltf2Parser {
     }
     return anim;
   }
+  // #endregion
+  // #region POSES ( CUSTOM, NOT PART OF GLTF SPEC )
   getPoseByName(n) {
     let o, i;
     for (i = 0; i < this.json.poses.length; i++) {
@@ -877,6 +971,9 @@ class Gltf2Parser {
     }
     return pose;
   }
+  // #endregion
+  // #region SUPPORT
+  // https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md
   parseAccessor(accID) {
     const accessor = this.json.accessors[accID];
     const bufView = this.json.bufferViews[accessor.bufferView];
@@ -901,6 +998,8 @@ class Gltf2Parser {
     }
     return false;
   }
+  // #endregion
+  // #region STATIC
   static async fetch(url) {
     const res = await fetch(url);
     if (!res.ok)
@@ -922,6 +1021,7 @@ class Gltf2Parser {
     }
     return null;
   }
+  // #endregion
 }
 
 export { Accessor, Animation, ELerp, ETransform, Mesh, Pose, Primitive, Skin, SkinJoint, Texture, Track, Gltf2Parser as default, parseGLB };
