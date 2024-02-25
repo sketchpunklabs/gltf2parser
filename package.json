@@ -20,13 +20,12 @@
     "files": [
         "dist"
     ],
-    "main": "./dist/gltf2parser.js",
-    "module": "./dist/gltf2parser.mjs",
+    "module": "./dist/gltf2parser.es.js",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/gltf2parser.js",
-            "require": "./dist/gltf2parser.mjs"
+            "import": "./dist/gltf2parser.es.js",
+            "require": "./dist/gltf2parser.cjs.js"
         }
     },
     "scripts": {

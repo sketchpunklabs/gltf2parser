@@ -629,8 +629,7 @@ class Gltf2Parser{
     // #endregion
 }
 
-export default Gltf2Parser;
-export { 
+export {
     parseGLB,
     Accessor, Texture, Pose,
     Mesh, Primitive,
