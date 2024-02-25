@@ -635,5 +635,5 @@ export {
     Accessor, Texture, Pose,
     Mesh, Primitive,
     Skin, SkinJoint,
-    Animation, Track, ETransform, ELerp,
+    Animation, Track, ETransform, ELerp, Gltf2Parser
 };
