@@ -64,15 +64,7 @@ class Gltf2Parser{
         return rtn;
     }
 
-    getMeshByName( n: string ) : [ any, number ] | null {
-        let o, i;
-        for( i=0; i < this.json.meshes.length; i++ ){
-            o = this.json.meshes[ i ];
-            if( o.name == n ) return [ o, i ];
-        }
-        return null;
-    }
-
+    /** Get all the nodes point to the mesh object */
     getMeshNodes( idx: number ) : Array< any >{
         const out : Array< any > = [];
         let n;
@@ -82,29 +74,55 @@ class Gltf2Parser{
         return out;
     }
 
-    getMesh( id: string | number | undefined ) : Mesh | null {
-        if( !this.json.meshes ){ console.warn( "No Meshes in GLTF File" ); return null; }
+    /** Get mesh elements, not parsed mesh primitives */
+    getMeshByName( n: string ) : [ any, number ] | null {
+        let o, i;
+        for( i=0; i < this.json.meshes.length; i++ ){
+            o = this.json.meshes[ i ];
+            if( o.name == n ) return [ o, i ];
+        }
+        return null;
+    }
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /** Get the mesh json by either using index value or string name */
+    getMeshElement( id: string | number | undefined ):[ any | null, number |  null ]{
         const json  = this.json;
         let m    : any | null    = null;
         let mIdx : number | null = null;
 
         switch( typeof id ){
-            case "string" : {
+            case 'string' : {
                 const tup = this.getMeshByName( id );
                 if( tup !== null ){
                     m    = tup[ 0 ];
                     mIdx = tup[ 1 ];
                 }
             break; }
-            case "number" : if( id < json.meshes.length ){ m = json.meshes[ id ]; mIdx = id; } break;
-            default       : m = json.meshes[ 0 ]; mIdx = 0; break;
+            
+            case 'number' :
+                if( id < json.meshes.length ){ 
+                    m       = json.meshes[ id ]; 
+                    mIdx    = id; 
+                }
+            break;
+            
+            default: m = json.meshes[ 0 ]; mIdx = 0; break;
         }
 
-        if( m == null || mIdx == null ){ console.warn( "No Mesh Found", id ); return null; }
+        return [ m, mIdx ];
+    }
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    getMesh( id: string | number | undefined ) : Mesh | null {
+        if( !this.json.meshes ){ console.warn( "No Meshes in GLTF File" ); return null; }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // WHICH MODEL?
+        const [ m, mIdx ] = this.getMeshElement( id );
+        if( m == null || mIdx == null ){ console.warn( 'No Mesh Found', id ); return null; }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // PARSE PRIMITIVES
+        const json = this.json;
         const mesh = new Mesh();
         mesh.name  = m.name;
         mesh.index = mIdx;
@@ -114,7 +132,7 @@ class Gltf2Parser{
             attr = p.attributes;
             prim = new Primitive();
 
-            //------------------------------------------------------
+            // ------------------------------------------------------
             if( p.material != undefined && p.material != null ){
                 prim.materialIdx    = p.material;
                 prim.materialName   = json.materials[ p.material ].name;
@@ -131,7 +149,7 @@ class Gltf2Parser{
                     console.error( 'Mesh is draco compressed but ext is not loaded.' );
                 }
             }else{
-                //------------------------------------------------------
+                // ------------------------------------------------------
                 if( p.indices       != undefined ) prim.indices    = this.parseAccessor( p.indices );
 
                 if( attr.POSITION && this.isAccessorInterleaved( attr.POSITION ) ){
@@ -148,12 +166,14 @@ class Gltf2Parser{
                 }
             }
 
-            //------------------------------------------------------
+            // ------------------------------------------------------
             mesh.primitives.push( prim );
         }
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // NODE TRANSFORMS
         const nodes = this.getMeshNodes( mIdx );
+
         // Save Position, Rotation and Scale if Available.
         if( nodes?.length ){
             if( nodes[0].translation )	mesh.position	= nodes[0].translation.slice( 0 );
@@ -161,7 +181,70 @@ class Gltf2Parser{
             if( nodes[0].scale )		mesh.scale		= nodes[0].scale.slice( 0 );
         }
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // EXTRAS
+        if( m?.extras?.targetNames ) mesh.morphTargets = m.extras.targetNames;
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        return mesh;
+    }
+
+    getMorphTarget( id: string | number, targetName: string ) : Mesh | null{
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // WHICH MODEL?
+        const [ m, mIdx ] = this.getMeshElement( id );
+        if( m == null || mIdx == null ){ console.warn( 'No Mesh Found', id ); return null; }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // CHECKS
+
+        // Does mesh have any morph target names?
+        if( ! m?.extras?.targetNames ){
+            console.log( 'Mesh element does not have any target names' );
+            return null;
+        }
+
+        // Does the target name exist?
+        const mtIdx = m.extras.targetNames.indexOf( targetName );
+        if( mtIdx === -1 ){
+            console.log( 'Morph target not found in mesh:', targetName );
+            return null;
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // PARSE PRIMITIVES
+        const mesh = new Mesh();
+        mesh.name  = targetName;
+        mesh.index = mtIdx;
+
+        let p: any, prim: any, attr: any;
+        for( p of m.primitives ){
+            
+            // ----------------------------------------
+            if( !p.targets ) continue;
+            
+            attr = p.targets[ mtIdx ];
+
+            if( this._needsDraco && p?.extensions?.KHR_draco_mesh_compression ){
+                console.error( 'getMorphTarget currently does not support draco compression' );
+                continue;
+            }
+
+            if( attr.POSITION && this.isAccessorInterleaved( attr.POSITION ) ){
+                console.error( 'getMorphTarget currently does not support interleaved data' );
+                continue;
+            }
+
+            // ----------------------------------------
+            prim = new Primitive()
+            
+            if( attr.POSITION   != undefined ) prim.position = this.parseAccessor( attr.POSITION );
+            if( attr.NORMAL     != undefined ) prim.normal   = this.parseAccessor( attr.NORMAL );
+
+            mesh.primitives.push( prim );
+        }
+
         return mesh;
     }
     // #endregion
@@ -563,7 +646,8 @@ class Gltf2Parser{
     parseAccessor( accID: number ) : Accessor | null {
         const accessor      = this.json.accessors[ accID ];
         const bufView       = this.json.bufferViews[ accessor.bufferView ];
-        console.log( accID, accessor, bufView );
+
+        if( !bufView ) return null;
 
         if( bufView.byteStride ){
             // If the total byte size is the same as the stride, its not really interleaved.
@@ -582,7 +666,7 @@ class Gltf2Parser{
         const accessor      = this.json.accessors[ accID ];
         const bufView       = this.json.bufferViews[ accessor.bufferView ];
 
-        if( bufView.byteStride ){
+        if( bufView && bufView.byteStride ){
             // If the total byte size is the same as the stride, its not really interleaved.
             const compLen       = ComponentVarMap[ accessor.type ];
             const byteSize      = ComponentTypeMap[ accessor.componentType ][ 0 ];

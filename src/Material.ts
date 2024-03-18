@@ -19,6 +19,27 @@ function hexString( r:number, g:number, b:number ): string{
     return ( "#" + rr.slice( -2 ) + gg.slice( -2 ) + bb.slice( -2 ) ).toUpperCase();
 }
 
+/*
+"materials": [{
+    "pbrMetallicRoughness": {
+       "baseColorTexture": { "index": 1 },
+       "baseColorFactor": [ 1.0, 0.75, 0.35, 1.0 ],
+       "metallicRoughnessTexture": { "index": 5 },
+       "metallicFactor": 1.0,
+       "roughnessFactor": 0.0
+     },
+     "normalTexture": { "index": 2 },
+     "occlusionTexture": {
+       "index": 4,
+       "strength": 0.9
+     },
+     "emissiveTexture": { "index": 3 },
+     "emissiveFactor": [0.4, 0.8, 0.6],
+     "alphaMode": "OPAQUE",
+     "doubleSided": true,
+   }]
+*/
+
 export class Material{
     index       : number  = -1;
     name        : string  = '';

@@ -269,6 +269,7 @@ class Mesh {
   position = null;
   rotation = null;
   scale = null;
+  morphTargets = null;
 }
 class Primitive {
   materialName = null;
@@ -474,15 +475,6 @@ class Gltf2Parser {
       rtn.push(i.name);
     return rtn;
   }
-  getMeshByName(n) {
-    let o, i;
-    for (i = 0; i < this.json.meshes.length; i++) {
-      o = this.json.meshes[i];
-      if (o.name == n)
-        return [o, i];
-    }
-    return null;
-  }
   getMeshNodes(idx) {
     const out = [];
     let n;
@@ -492,11 +484,16 @@ class Gltf2Parser {
     }
     return out;
   }
-  getMesh(id) {
-    if (!this.json.meshes) {
-      console.warn("No Meshes in GLTF File");
-      return null;
+  getMeshByName(n) {
+    let o, i;
+    for (i = 0; i < this.json.meshes.length; i++) {
+      o = this.json.meshes[i];
+      if (o.name == n)
+        return [o, i];
     }
+    return null;
+  }
+  getMeshElement(id) {
     const json = this.json;
     let m = null;
     let mIdx = null;
@@ -520,10 +517,19 @@ class Gltf2Parser {
         mIdx = 0;
         break;
     }
+    return [m, mIdx];
+  }
+  getMesh(id) {
+    if (!this.json.meshes) {
+      console.warn("No Meshes in GLTF File");
+      return null;
+    }
+    const [m, mIdx] = this.getMeshElement(id);
     if (m == null || mIdx == null) {
       console.warn("No Mesh Found", id);
       return null;
     }
+    const json = this.json;
     const mesh = new Mesh();
     mesh.name = m.name;
     mesh.index = mIdx;
@@ -578,6 +584,48 @@ class Gltf2Parser {
         mesh.rotation = nodes[0].rotation.slice(0);
       if (nodes[0].scale)
         mesh.scale = nodes[0].scale.slice(0);
+    }
+    if (m?.extras?.targetNames)
+      mesh.morphTargets = m.extras.targetNames;
+    return mesh;
+  }
+  getMorphTarget(id, targetName) {
+    const [m, mIdx] = this.getMeshElement(id);
+    if (m == null || mIdx == null) {
+      console.warn("No Mesh Found", id);
+      return null;
+    }
+    if (!m?.extras?.targetNames) {
+      console.log("Mesh element does not have any target names");
+      return null;
+    }
+    const mtIdx = m.extras.targetNames.indexOf(targetName);
+    if (mtIdx === -1) {
+      console.log("Morph target not found in mesh:", targetName);
+      return null;
+    }
+    const mesh = new Mesh();
+    mesh.name = targetName;
+    mesh.index = mtIdx;
+    let p, prim, attr;
+    for (p of m.primitives) {
+      if (!p.targets)
+        continue;
+      attr = p.targets[mtIdx];
+      if (this._needsDraco && p?.extensions?.KHR_draco_mesh_compression) {
+        console.error("getMorphTarget currently does not support draco compression");
+        continue;
+      }
+      if (attr.POSITION && this.isAccessorInterleaved(attr.POSITION)) {
+        console.error("getMorphTarget currently does not support interleaved data");
+        continue;
+      }
+      prim = new Primitive();
+      if (attr.POSITION != void 0)
+        prim.position = this.parseAccessor(attr.POSITION);
+      if (attr.NORMAL != void 0)
+        prim.normal = this.parseAccessor(attr.NORMAL);
+      mesh.primitives.push(prim);
     }
     return mesh;
   }
@@ -880,7 +928,8 @@ class Gltf2Parser {
   parseAccessor(accID) {
     const accessor = this.json.accessors[accID];
     const bufView = this.json.bufferViews[accessor.bufferView];
-    console.log(accID, accessor, bufView);
+    if (!bufView)
+      return null;
     if (bufView.byteStride) {
       const compLen = ComponentVarMap[accessor.type];
       const byteSize = ComponentTypeMap[accessor.componentType][0];
@@ -894,7 +943,7 @@ class Gltf2Parser {
   isAccessorInterleaved(accID) {
     const accessor = this.json.accessors[accID];
     const bufView = this.json.bufferViews[accessor.bufferView];
-    if (bufView.byteStride) {
+    if (bufView && bufView.byteStride) {
       const compLen = ComponentVarMap[accessor.type];
       const byteSize = ComponentTypeMap[accessor.componentType][0];
       return bufView.byteStride !== compLen * byteSize;

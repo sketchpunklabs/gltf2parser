@@ -1,14 +1,19 @@
 import Accessor          from './Accessor';
 import InterleavedBuffer from './InterleavedBuffer';
 
+// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-mesh
+// https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_018_MorphTargets.md
+
 export class Mesh{
-    index      : number | null      = null; // Index in Mesh Collection
-    name       : string | null      = null; // Mesh Name
-    primitives : Array<Primitive>   = [];   // Mesh is made up of more then one Primative
+    index           : number | null      = null;    // Index in Mesh Collection
+    name            : string | null      = null;    // Mesh Name
+    primitives      : Array<Primitive>   = [];      // Mesh is made up of more then one Primative
     
-    position   : number[] | null = null; // Node's Position
-    rotation   : number[] | null = null; // Node's Rotation
-    scale      : number[] | null = null; // Node's Scale
+    position        : number[] | null = null;       // Node's Position
+    rotation        : number[] | null = null;       // Node's Rotation
+    scale           : number[] | null = null;       // Node's Scale
+
+    morphTargets    : string[] | null = null;       // Other version of the mesh
 }
 
 export class Primitive{
