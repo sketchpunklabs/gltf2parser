@@ -25,7 +25,7 @@ window.addEventListener( 'load', async _=>{
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if( m.morphTargets ){
         console.log( m.morphTargets );
-        const morph = gltf.getMorphTarget( m.name, 'samuraiJack' ); // raven, umanWide
+        const morph = gltf.getMorphTarget( m.name, 'raven' ); // raven, umanWide, samuraiJack
         const pnt   = morphPointMesh( m, morph, '#00ff00', 0.002 );
         App.add( pnt );
     }

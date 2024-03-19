@@ -1,0 +1,287 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title></title></head><body>
+<script type="module">
+
+// #region IMPORTS
+import Starter, { THREE }       from './_lib/Starter.js';
+import { UtilGltf2, Gltf2 }     from './_lib/UtilGltf2.js';
+// #endregion
+
+// #region MAIN
+let App;
+let Ref = {};
+window.addEventListener( 'load', async _=>{
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    App = new Starter( { webgl2:true, grid:true } );
+    App.setCamera( 0, 20, 4, [0,0.8,0] ).render();
+    App.onRender = onRender;
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const gltf  = await Gltf2.fetch( './_res/models/autoRig/autoRig.gltf' );
+    // console.log( gltf.getMeshNames() );
+
+    const m      = gltf.getMesh( 'bodyGeo' );
+    const meshes = gtlfMesh( m );
+    App.scene.add( ...meshes );
+    Ref.meshes = meshes;
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if( m.morphTargets ){
+        // console.log( m.morphTargets );
+        const morph = gltf.getMorphTarget( m.name, 'umanWide' ); // raven, umanWide, samuraiJack
+        const mtAry = morphDataTexture( morph );
+
+        for( let i=0; i < meshes.length; i++ ){
+            meshes[i].material.morph = mtAry[i];
+            // console.log( meshes[i] );
+            // console.log( mtAry[i] );
+        }
+    }
+});
+
+function fract( v ){ return v - Math.floor( v ); }
+
+function onRender( dt, et ){
+    if( Ref.meshes ){
+        const t = Math.sin( fract( et / 5 ) * ( Math.PI * 2.0 ) ) * 0.5 + 0.5;
+
+        for( let m of Ref.meshes ){
+            m.material.tmorph = t;
+        }
+    }
+}
+// #endregion
+
+function pointMesh( m, color='#ffffff', size=0.001  ){
+    const grp = new THREE.Group();
+    const mat = new THREE.PointsMaterial( { size, color } );
+    
+    for( const p of m.primitives ){
+        // console.log( color, p.position.data.length );
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute( 'position', new THREE.BufferAttribute( p.position.data, 3 ) );
+
+        const pnt = new THREE.Points( geo, mat );
+        grp.add( pnt );
+    }
+
+    return grp;
+}
+
+function morphPointMesh( base, morph, color='#ffffff', size=0.001 ){
+    const grp = new THREE.Group();
+    const mat = new THREE.PointsMaterial( { size, color } );
+
+    for( let i=0; i < base.primitives.length; i++ ){
+        if( !morph.primitives[ i ].position ) return null;
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        const b = base.primitives[ i ].position.data;
+        const m = morph.primitives[ i ].position.data;
+        const v = new Float32Array( b.length );
+        for( let j=0; j < b.length; j++ ){
+            v[ j ] = b[ j ] + m[ j ];
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute( 'position', new THREE.BufferAttribute( v, 3 ) );
+
+        const pnt = new THREE.Points( geo, mat );
+        grp.add( pnt );
+    }
+
+    return grp;
+}
+
+function morphDataTexture( morph ){
+    const rtn = [];
+    const xPx = 2;
+
+    for( let i=0; i < morph.primitives.length; i++ ){
+        if( !morph.primitives[ i ].position ) return null;
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        const p     = morph.primitives[ i ].position.data;
+        const n     = morph.primitives[ i ].normal.data;
+        const yPx   = p.length / 3;
+        const raw   = new Float32Array( (xPx * yPx) * 4 ); // x * y * RGBA Float
+
+        for( let j=0; j < yPx; j++ ){
+            const k = j * 8; // DISPLACEMENT RGBA, NORMAL RGBA
+            const l = j * 3; // Every XYZ
+
+            // raw[ k+0 ] = 0;
+            // raw[ k+1 ] = 0;
+            // raw[ k+2 ] = -1;
+            // raw[ k+3 ] = 0;
+
+            raw[ k+0 ] = p[l+0];
+            raw[ k+1 ] = p[l+1];
+            raw[ k+2 ] = p[l+2];
+            raw[ k+3 ] = 0;
+
+            raw[ k+4 ] = n[l+0];
+            raw[ k+5 ] = n[l+1];
+            raw[ k+6 ] = n[l+2];
+            raw[ k+7 ] = 0;
+        }
+
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        const tex = new THREE.DataTexture( raw, xPx, yPx, THREE.RGBAFormat, THREE.FloatType );
+        tex.needsUpdate     = true;
+        // tex.unpackAlignment = 1;
+        // tex.generateMipmaps = false;
+        // tex.flipY           = false;
+        tex.name            = yPx;
+
+        rtn.push( tex );
+    }
+
+    return rtn;
+}
+
+
+function gtlfMesh( mesh ){ //, mat=null
+    const rtn = [];
+    // mat       = mat || new THREE.MeshPhongMaterial( { color:'#00ffff' } );
+
+    for( const prim of mesh.primitives ){
+        const mat = customMaterial();
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute( 'position', new THREE.BufferAttribute( prim.position.data, prim.position.componentLen ) );
+
+        if( prim.indices )    geo.setIndex( new THREE.BufferAttribute( prim.indices.data, 1 ) );
+        if( prim.normal )     geo.setAttribute( 'normal', new THREE.BufferAttribute( prim.normal.data, prim.normal.componentLen ) );
+        if( prim.texcoord_0 ) geo.setAttribute( 'uv', new THREE.BufferAttribute( prim.texcoord_0.data, prim.texcoord_0.componentLen ) );
+
+        rtn.push( new THREE.Mesh( geo, mat ) );
+    }
+
+    return rtn;
+}
+
+
+// https://gist.github.com/KenneyNL/802d7107fbe9bf42b16ec05b43b58079
+function customMaterial( baseColor=0xa0a0a0, useLowPoly=false ){
+    const mat = new THREE.RawShaderMaterial({
+        depthTest       : true,
+        // transparent 	: true, 
+        // side         : THREE.DoubleSide,
+        // lights       : true,
+
+        uniforms        : { 
+            color   : { type :'vec3', value:new THREE.Color( baseColor ) },
+            color_x : { type :'vec3', value:new THREE.Color( '#878FA3' ) }, // Each axis gets a Grayscaled Value, used as strength of baseColor
+            color_y : { type :'vec3', value:new THREE.Color( '#ffffff' ) }, // these don't really need to be modified unless looking to change 
+            color_z : { type :'vec3', value:new THREE.Color( '#CED4E0' ) }, // the overall strength of each axis
+
+            morph   : { type :'sampler2D', value:null },
+            tmorph  : { type :'float', value:1 },
+        },
+
+        extensions      : { 
+            derivatives : true
+        },
+
+        vertexShader    : `#version 300 es
+        in vec3 position;
+        in vec3 normal;
+        in vec2 uv;
+        
+        uniform mat4        modelMatrix;
+        uniform mat4        viewMatrix;
+        uniform mat4        projectionMatrix;
+        
+        uniform sampler2D morph;
+        uniform float tmorph;
+
+        out vec3 fragWPos;  // World Space Position
+        out vec3 fragNorm;
+        out vec2 fragUV;
+        
+        void main(){
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            vec3 pos    = position;
+            vec3 norm   = normal;
+
+            int idx     = gl_VertexID;
+            vec4 pxMove = texelFetch( morph, ivec2( 0, idx ), 0 );
+            vec4 pxNorm = texelFetch( morph, ivec2( 1, idx ), 0 );
+
+            pos  += pxMove.xyz * tmorph;
+            norm += pxNorm.xyz;
+
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            vec4 wPos           = modelMatrix * vec4( pos, 1.0 );   // World Space
+            vec4 vPos           = viewMatrix * wPos;                // View Space
+            
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            fragUV              = uv;
+            fragWPos            = wPos.xyz;
+            fragNorm            = ( modelMatrix * vec4( norm, 0.0 ) ).xyz;
+            
+            // https://gist.github.com/mattatz/86fff4b32d198d0928d0fa4ff32cf6fa
+            // Decompose Scale
+            // mat4 mtx  = modelMatrix;
+            // fragScale = vec3(
+            //     length( vec3( mtx[0][0], mtx[0][1], mtx[0][2] ) ),
+            //     length( vec3( mtx[1][0], mtx[1][1], mtx[1][2] ) ),
+            //     length( vec3( mtx[2][0], mtx[2][1], mtx[2][2] ) )
+            // );
+
+            gl_Position = projectionMatrix * vPos;
+        }`,
+
+        fragmentShader  : `#version 300 es
+        precision mediump float;
+        
+        ${ ( useLowPoly )? '#define LOWPOLY':'' }
+
+        uniform vec3 color;
+        uniform vec3 color_x;
+        uniform vec3 color_y;
+        uniform vec3 color_z;
+
+        in  vec3    fragWPos;
+        in  vec3    fragNorm;
+        in  vec2    fragUV;
+        out vec4    outColor;
+
+        // #####################################################################
+        void main(){
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            #ifndef LOWPOLY
+                vec3 norm = normalize( fragNorm ); // Normals From Mesh
+            #else
+                // Create normals using derivitive functions. Makes things look low poly
+                vec3 norm = normalize( cross( dFdx( fragWPos), dFdy( fragWPos ) ) );
+            #endif
+
+            // Treating normal as Light Strength, it curves the progression from dark to light
+            // if left as is, it gives the tint lighting much more strength and also linear progression
+            norm = norm * norm; 
+    
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            // From what I understand of how this works is by applying a Lighting Color for Each axis direction.
+            // Then using the normal direction to blend each axis color together. From kenny's image example, he
+            // setup the brightest color to come from Y, Second from Z then the darkest color at X.
+            vec3 out_color;
+            out_color = mix( color, color * color_x, norm.x );
+            out_color = mix( out_color, color * color_y, norm.y );
+            out_color = mix( out_color, color * color_z, norm.z );
+
+            outColor  = vec4( out_color, 1.0 );
+        }`
+    });
+
+    Object.defineProperty( mat, 'morph', { set( v ){ mat.uniforms.morph.value = v; }, });
+    Object.defineProperty( mat, 'tmorph', { set( v ){ mat.uniforms.tmorph.value = v; }, });
+    return mat;
+}
+
+
+</script>
+</body></html>
