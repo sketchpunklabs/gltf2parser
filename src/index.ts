@@ -7,7 +7,7 @@ import Draco                                    from './Draco';
 import { Mesh, Primitive }                      from './Mesh';
 import { Skin, SkinJoint }                      from './Skin';
 import { Animation, Track, ETransform, ELerp }  from './Animation';
-import { Texture }                              from './Texture';
+import Texture                                  from './Texture';
 import { Pose }                                 from './Pose';
 import { ComponentTypeMap, ComponentVarMap }    from './structs';
 import { Material }                             from './Material';
@@ -17,6 +17,7 @@ class Gltf2Parser{
     // #region MAIN
     json         : any;
     bin          : ArrayBuffer;
+    path         : string  = '';
     _needsDraco  : boolean = false;
     _extDraco   ?: Draco   = undefined;
 
@@ -412,7 +413,7 @@ class Gltf2Parser{
         if( idx === -1 ){ console.error( 'Material not found ', id ); return null; }
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        const mat = new Material( json.materials[ idx ] );
+        const mat = new Material( json.materials[ idx ], this );
         mat.index = idx;
         return mat;
     }
@@ -423,7 +424,7 @@ class Gltf2Parser{
         if( this.json.materials ){
             let mat: Material;
             for( let i=0; i < this.json.materials.length; i++ ){
-                mat             = new Material( this.json.materials[ i ] );
+                mat             = new Material( this.json.materials[ i ], this );
                 mat.index       = i;
                 rtn[ mat.name ] = mat;
             }
@@ -434,20 +435,7 @@ class Gltf2Parser{
 
     // https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#texture-data
     getTexture( id: number ): Texture | null{
-        const js    = this.json;
-        const t     = js.textures[ id ];
-        //const samp  = js.samplers[ t.sampler ];
-        const img   = js.images[ t.source ];
-        const bv    = js.bufferViews[ img.bufferView ];
-
-        const bAry  = new Uint8Array( this.bin, bv.byteOffset, bv.byteLength );
-        const tex   = new Texture();
-        tex.index   = id;
-        tex.name    = img.name;
-        tex.mime    = img.mimeType;
-        tex.blob    = new Blob( [ bAry ], { type: img.mimeType } );
-
-        return tex;
+        return Texture.fromIndex( id, this );
     }
 
     // #endregion
@@ -682,32 +670,37 @@ class Gltf2Parser{
     static async fetch( url: string ) : Promise< Gltf2Parser | null >{
         const res = await fetch( url );
         if( !res.ok ) return null;
-        
+
+        let parser : Gltf2Parser | null = null; 
+        const path = url.substring( 0, url.lastIndexOf( '/') + 1 );
+
         // const i   = url.lastIndexOf( '.' );
         // const ext = url.substr( i, 4 );
 
         switch( url.slice( -4 ).toLocaleLowerCase() ){
-            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             case 'gltf':{
                 let bin : ArrayBuffer | undefined;
                 const json = await res.json();
-
-                if( json.buffers && json.buffers.length > 0 ){
-                    const path = url.substring( 0, url.lastIndexOf( '/') + 1 );
-                    bin        = await fetch( path + json.buffers[ 0 ].uri ).then( r=>r.arrayBuffer() );
+                
+                if( json.buffers && json.buffers.length > 0 ){                    
+                    bin = await fetch( path + json.buffers[ 0 ].uri ).then( r=>r.arrayBuffer() );
                 }
                 
-                return new Gltf2Parser( json, bin );
+                parser = new Gltf2Parser( json, bin );
+                break;
             }
             
-            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             case '.glb':{
                 const tuple = await parseGLB( res );
-                return ( tuple )? new Gltf2Parser( tuple[0], tuple[1] ) : null;
+                if( tuple ) parser = new Gltf2Parser( tuple[0], tuple[1] );
+                break;
             }
         }
 
-        return null;
+        if( parser ) parser.path = path;
+        return parser;
     }
 
     // #endregion

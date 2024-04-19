@@ -361,10 +361,27 @@ class Animation {
 }
 
 class Texture {
-  index = null;
-  name = null;
-  mime = null;
+  index = -1;
+  name = "";
+  mime = "";
+  uri = "";
   blob = null;
+  static fromIndex(idx, parser) {
+    const tex = new Texture();
+    tex.index = idx;
+    const info = parser.json.textures[idx];
+    const src = parser.json.images[info.source];
+    tex.name = src.name;
+    tex.mime = src.mimeType;
+    if (src.uri)
+      tex.uri = src.uri;
+    if (src.bufferView != null) {
+      const bv = parser.json.bufferViews[src.bufferView];
+      const bAry = new Uint8Array(parser.bin, bv.byteOffset, bv.byteLength);
+      tex.blob = new Blob([bAry], { type: src.mimeType });
+    }
+    return tex;
+  }
 }
 
 class PoseJoint {
@@ -391,54 +408,32 @@ class Pose {
   }
 }
 
-function gamma(v) {
-  return v <= 31308e-7 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
-}
-function hex(r, g, b) {
-  return Math.round(r * 255) << 16 | Math.round(g * 255) << 8 | Math.round(b * 255);
-}
-function hexString(r, g, b) {
-  const rr = "0" + Math.round(r * 255).toString(16);
-  const gg = "0" + Math.round(g * 255).toString(16);
-  const bb = "0" + Math.round(b * 255).toString(16);
-  return ("#" + rr.slice(-2) + gg.slice(-2) + bb.slice(-2)).toUpperCase();
-}
 class Material {
   index = -1;
   name = "";
-  baseColor = [0, 0, 0, 1];
   metallic = 0;
   roughness = 0;
-  constructor(mat) {
+  baseTexture = null;
+  baseColor = null;
+  constructor(mat, parser) {
     this.name = mat.name || window.crypto.randomUUID();
     if (mat.pbrMetallicRoughness) {
       if (mat.pbrMetallicRoughness.baseColorFactor) {
-        this.baseColor[0] = mat.pbrMetallicRoughness.baseColorFactor[0];
-        this.baseColor[1] = mat.pbrMetallicRoughness.baseColorFactor[1];
-        this.baseColor[2] = mat.pbrMetallicRoughness.baseColorFactor[2];
-        this.baseColor[3] = mat.pbrMetallicRoughness.baseColorFactor[3];
+        this.baseColor = mat.pbrMetallicRoughness.baseColorFactor[0];
+      }
+      if (mat.pbrMetallicRoughness.baseColorTexture) {
+        this.baseTexture = Texture.fromIndex(mat.pbrMetallicRoughness.baseColorTexture.index, parser);
       }
       this.metallic = mat.pbrMetallicRoughness.metallicFactor || 0;
       this.roughness = mat.pbrMetallicRoughness.roughnessFactor || 0;
     }
-  }
-  get baseColorHex() {
-    return hex(this.baseColor[0], this.baseColor[1], this.baseColor[2]);
-  }
-  get baseColorGammaHex() {
-    return hex(gamma(this.baseColor[0]), gamma(this.baseColor[1]), gamma(this.baseColor[2]));
-  }
-  get baseColorString() {
-    return hexString(this.baseColor[0], this.baseColor[1], this.baseColor[2]);
-  }
-  get baseColorGammaString() {
-    return hexString(gamma(this.baseColor[0]), gamma(this.baseColor[1]), gamma(this.baseColor[2]));
   }
 }
 
 class Gltf2Parser {
   json;
   bin;
+  path = "";
   _needsDraco = false;
   _extDraco = void 0;
   constructor(json, bin) {
@@ -767,7 +762,7 @@ class Gltf2Parser {
       console.error("Material not found ", id);
       return null;
     }
-    const mat = new Material(json.materials[idx]);
+    const mat = new Material(json.materials[idx], this);
     mat.index = idx;
     return mat;
   }
@@ -776,7 +771,7 @@ class Gltf2Parser {
     if (this.json.materials) {
       let mat;
       for (let i = 0; i < this.json.materials.length; i++) {
-        mat = new Material(this.json.materials[i]);
+        mat = new Material(this.json.materials[i], this);
         mat.index = i;
         rtn[mat.name] = mat;
       }
@@ -784,17 +779,7 @@ class Gltf2Parser {
     return rtn;
   }
   getTexture(id) {
-    const js = this.json;
-    const t = js.textures[id];
-    const img = js.images[t.source];
-    const bv = js.bufferViews[img.bufferView];
-    const bAry = new Uint8Array(this.bin, bv.byteOffset, bv.byteLength);
-    const tex = new Texture();
-    tex.index = id;
-    tex.name = img.name;
-    tex.mime = img.mimeType;
-    tex.blob = new Blob([bAry], { type: img.mimeType });
-    return tex;
+    return Texture.fromIndex(id, this);
   }
   getAnimationNames() {
     const json = this.json, rtn = [];
@@ -954,22 +939,28 @@ class Gltf2Parser {
     const res = await fetch(url);
     if (!res.ok)
       return null;
+    let parser = null;
+    const path = url.substring(0, url.lastIndexOf("/") + 1);
     switch (url.slice(-4).toLocaleLowerCase()) {
       case "gltf": {
         let bin;
         const json = await res.json();
         if (json.buffers && json.buffers.length > 0) {
-          const path = url.substring(0, url.lastIndexOf("/") + 1);
           bin = await fetch(path + json.buffers[0].uri).then((r) => r.arrayBuffer());
         }
-        return new Gltf2Parser(json, bin);
+        parser = new Gltf2Parser(json, bin);
+        break;
       }
       case ".glb": {
         const tuple = await parseGLB(res);
-        return tuple ? new Gltf2Parser(tuple[0], tuple[1]) : null;
+        if (tuple)
+          parser = new Gltf2Parser(tuple[0], tuple[1]);
+        break;
       }
     }
-    return null;
+    if (parser)
+      parser.path = path;
+    return parser;
   }
 }
 
