@@ -419,7 +419,7 @@ class Material {
     this.name = mat.name || window.crypto.randomUUID();
     if (mat.pbrMetallicRoughness) {
       if (mat.pbrMetallicRoughness.baseColorFactor) {
-        this.baseColor = mat.pbrMetallicRoughness.baseColorFactor[0];
+        this.baseColor = mat.pbrMetallicRoughness.baseColorFactor;
       }
       if (mat.pbrMetallicRoughness.baseColorTexture) {
         this.baseTexture = Texture.fromIndex(mat.pbrMetallicRoughness.baseColorTexture.index, parser);

@@ -40,7 +40,7 @@ export class Material{
             // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             // BASE
             if( mat.pbrMetallicRoughness.baseColorFactor ){
-                this.baseColor = mat.pbrMetallicRoughness.baseColorFactor[0];
+                this.baseColor = mat.pbrMetallicRoughness.baseColorFactor;
             }
 
             if( mat.pbrMetallicRoughness.baseColorTexture ){
