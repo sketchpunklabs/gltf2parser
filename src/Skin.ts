@@ -1,3 +1,5 @@
+// https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_020_Skins.md#the-skin
+
 export class Skin{
     index       : number | null    = null; // Index in Mesh Collection
     name        : string | null    = null; // Skin Name

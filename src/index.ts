@@ -286,7 +286,7 @@ class Gltf2Parser{
                     idx = tup[ 1 ];
                 }
             break; }
-            case "number" : if( id < json.skins.length ){ js = json.meshes[ id ]; idx = id; } break;
+            case "number" : if( id < json.skins.length ){ js = json.skins[ id ]; idx = id; } break;
             default       : js = json.skins[ 0 ]; idx = 0; break;
         }
 

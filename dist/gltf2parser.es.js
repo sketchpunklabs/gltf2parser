@@ -659,7 +659,7 @@ class Gltf2Parser {
       }
       case "number":
         if (id < json.skins.length) {
-          js = json.meshes[id];
+          js = json.skins[id];
           idx = id;
         }
         break;
