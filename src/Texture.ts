@@ -3,7 +3,10 @@ import type Gltf2Parser from './index';
 /*
 https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#texture-data
 
-json.textures[0] = {sampler: 0, source: 0};
+json.textures[0] = {
+    sampler: 0, source: 0,
+    extensions:{ EXT_texture_webp:{ source:0 } },
+};
 json.samplers[0] = {magFilter: 9729, minFilter: 9987}
 json.images[0]   = {mimeType: 'image/jpeg', name: 'pete_texture', uri: 'pete_texture.jpg'}
 */
@@ -20,7 +23,16 @@ export default class Texture{
         tex.index = idx;
 
         const info = parser.json.textures[ idx ];
-        const src  = parser.json.images[ info.source ];
+        let src;
+
+        if( info.source != null ){
+            src = parser.json.images[ info.source ];
+        }else{
+            if( info.extensions && info.extensions.EXT_texture_webp ){
+                src = parser.json.images[ info.extensions.EXT_texture_webp.source ];
+            }
+        }
+    
         tex.name = src.name;
         tex.mime = src.mimeType;
 
